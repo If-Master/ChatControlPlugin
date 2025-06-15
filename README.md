@@ -1,10 +1,10 @@
-Custom Chat Channels Plugin
+# Custom Chat Channels Plugin
 
-A powerful and Easy to use chat control plugin designed for expanding Minecraft servers. This plugin will allow players to create, manage, and participate in custom chat channels, such as clan chats and etc, supporting both file and MySQL storage backends.
+## A powerful and Easy to use chat control plugin designed for expanding Minecraft servers. This plugin will allow players to create, manage, and participate in custom chat channels, such as clan chats and etc, supporting both file and MySQL storage backends.
 
-Whether you're managing a small community or a large-scale server network, this plugin makes communication clean, organized, and clan-based. It will though not leak anyones clan since it will hide the chats that they can't access
+## Whether you're managing a small community or a large-scale server network, this plugin makes communication clean, organized, and clan-based. It will though not leak anyones clan since it will hide the chats that they can't access
 
-Features
+# Features
   Create and join custom chat channels
 
   Role based chats (e.g., Staff, Dev)
@@ -17,7 +17,7 @@ Features
 
   Planned Folia compatibility
 
-Commands:
+# Commands:
 ```
 /chat help - Show the help menu  
 /chat create <name> - Create a new chat channel  
@@ -44,7 +44,7 @@ Commands:
 /chat transfer <player> <channel> - Transfer channel ownership  
 
 ```
-Permissions
+# Permissions
 ```
   chat.admin:
     description: Access to all chat admin commands
