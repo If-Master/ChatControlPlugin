@@ -1,0 +1,92 @@
+# Server identification
+server-name: "MyServer"
+
+# Storage configuration [Vault required]
+storage:
+  # Storage type: "file" or "mysql"
+  type: "file"
+  
+  # MySQL configuration (only used if type is "mysql")
+  mysql:
+    host: "localhost"
+    port: 3306
+    database: "minecraft"
+    username: "root"
+    password: ""
+
+# Chat settings
+chat:
+  # Default chat channel for new players
+  default-channel: "public"
+  
+  # Maximum number of custom channels a player can create
+  max-channels-per-player: 0
+  
+  # Default maximum members per channel
+  default-max-members: 9999
+
+  # Chat cooldown in seconds (0 to disable)
+  chat-cooldown: 0
+  
+  # Maximum message length
+  max-message-length: 256
+
+# Colors:
+#  §0 Black
+#  §1 Dark Blue
+#  §2 Dark Green
+#  §3 Dark Aqua
+#  §4 Dark Red
+#  §5 Dark Purple
+#  §6 Gold
+#  §7 Gray
+#  §8 Dark Gray
+#  §9 Blue
+#  §a Green
+#  §b Aqua
+#  §c Red
+#  §d Light Purple
+#  §e Yellow
+#  §f White
+
+
+### Channel settings ###
+# The following entries are always required: /chat Dev, /chat Staff, and /chat Public.
+# Removing or modifying any of these may cause errors.
+# If you're not familiar with coding, please do not change anything other than the display-name: "NAME" field.
+channels:
+  public:
+    display-name: "§7[§aP§7]"
+    description: "Main public chat channel"
+    auto-join: true
+
+  staff:
+    display-name: "§7[§cS§7]" # Staff
+    description: "Staff only chat channel"
+    required-permission: "chat.staff"
+
+  dev:
+    display-name: "§7[§bD§7]" #Dev
+    description: "Developer chat channel"
+    required-permission: "chat.dev"
+
+# Integration settings
+integrations:
+  # EssentialsChat integration
+  essentials-chat:
+    # Use EssentialsChat formatting for prefixes/suffixes
+    use-formatting: true
+    
+    # Override EssentialsChat's chat handling
+    override-chat: true
+
+# Logging settings
+logging:
+  # Log all chat messages to console
+  console-logging: true
+  
+  # Log chat messages to files
+  file-logging: true
+  
+  # Include timestamps in logs
+  include-timestamps: true

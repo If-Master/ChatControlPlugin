@@ -1,0 +1,48 @@
+name: ChatControlPlugin
+version: 1.0.0
+main: me.kanuunankuulaspluginchat.chatSystem.ChatControlPlugin
+api-version: 1.21
+authors: [Kanuunankuula ( If_Master )]
+description: Advanced chat system with multiple channels and EssentialsChat integration
+softdepend: [Vault, EssentialsChat]
+
+commands:
+  chat:
+    description: Main chat command
+    usage: /chat <subcommand>
+    aliases: [ch, chatcontrol]
+
+permissions:
+  chat.admin:
+    description: Access to all chat admin commands
+    default: op
+  chat.staff:
+    description: Access to staff chat
+    default: op
+  chat.dev:
+    description: Access to dev chat
+    default: op
+  chat.create:
+    description: Create custom chat channels
+    default: true
+  chat.join:
+    description: Join chat channels
+    default: true
+  chat.invite:
+    description: Invite players to chat channels
+    default: true
+  chat.freeze:
+    description: Freeze chat channels
+    default: op
+  chat.clear:
+    description: Clear chat channels
+    default: op
+  chat.investigation:
+    description: Investigation mode for monitoring
+    default: op
+  chat.channels.limit.<Amount>:
+    description: Add here the amount you want the user to have for groups
+    default: op
+  chat.channels.unlimited:
+    description: User will be able to generate Unlimited groups
+    default: op
