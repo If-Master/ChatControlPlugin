@@ -6,12 +6,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class UserChatProfile {
     private final Set<String> joinedChats = ConcurrentHashMap.newKeySet();
     private final Set<String> hiddenChats = ConcurrentHashMap.newKeySet();
-    private String currentChat = "public";
     private final Map<String, Long> lastMessageTime = new ConcurrentHashMap<>();
     private final Map<String, Integer> messageCount = new ConcurrentHashMap<>();
+    private final long profileCreated;
+    private String currentChat = "public";
     private boolean chatNotifications = true;
     private boolean chatSounds = true;
-    private final long profileCreated;
 
     public UserChatProfile() {
         this.profileCreated = System.currentTimeMillis();
