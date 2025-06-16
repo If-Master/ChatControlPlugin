@@ -24,7 +24,59 @@ public class UniversalCompatibilityManager {
         BUKKIT
     }
 
+    // Wrapper interface for task objects
+    public interface TaskWrapper {
+        void cancel();
+        boolean isCancelled();
+    }
 
+    // Implementation for BukkitTask
+    private static class BukkitTaskWrapper implements TaskWrapper {
+        private final BukkitTask task;
+
+        public BukkitTaskWrapper(BukkitTask task) {
+            this.task = task;
+        }
+
+        @Override
+        public void cancel() {
+            task.cancel();
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return task.isCancelled();
+        }
+    }
+
+    // Implementation for Folia tasks
+    private static class FoliaTaskWrapper implements TaskWrapper {
+        private final Object task;
+
+        public FoliaTaskWrapper(Object task) {
+            this.task = task;
+        }
+
+        @Override
+        public void cancel() {
+            try {
+                java.lang.reflect.Method cancelMethod = task.getClass().getMethod("cancel");
+                cancelMethod.invoke(task);
+            } catch (Exception e) {
+                // Handle silently or log if needed
+            }
+        }
+
+        @Override
+        public boolean isCancelled() {
+            try {
+                java.lang.reflect.Method isCancelledMethod = task.getClass().getMethod("isCancelled");
+                return (Boolean) isCancelledMethod.invoke(task);
+            } catch (Exception e) {
+                return false;
+            }
+        }
+    }
 
     public UniversalCompatibilityManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -55,39 +107,39 @@ public class UniversalCompatibilityManager {
 
     // === BASIC SCHEDULING METHODS ===
 
-    public BukkitTask runTask(Runnable task) {
+    public TaskWrapper runTask(Runnable task) {
         switch (serverType) {
             case FOLIA:
                 return runFoliaGlobalTask(task);
             default:
-                return Bukkit.getScheduler().runTask(plugin, task);
+                return new BukkitTaskWrapper(Bukkit.getScheduler().runTask(plugin, task));
         }
     }
 
-    public BukkitTask runTaskAsync(Runnable task) {
+    public TaskWrapper runTaskAsync(Runnable task) {
         switch (serverType) {
             case FOLIA:
                 return runFoliaAsyncTask(task);
             default:
-                return Bukkit.getScheduler().runTaskAsynchronously(plugin, task);
+                return new BukkitTaskWrapper(Bukkit.getScheduler().runTaskAsynchronously(plugin, task));
         }
     }
 
-    public BukkitTask runTaskLater(Runnable task, long delay) {
+    public TaskWrapper runTaskLater(Runnable task, long delay) {
         switch (serverType) {
             case FOLIA:
                 return runFoliaDelayedTask(task, delay);
             default:
-                return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+                return new BukkitTaskWrapper(Bukkit.getScheduler().runTaskLater(plugin, task, delay));
         }
     }
 
-    public BukkitTask runTaskTimer(Runnable task, long delay, long period) {
+    public TaskWrapper runTaskTimer(Runnable task, long delay, long period) {
         switch (serverType) {
             case FOLIA:
                 return runFoliaTimerTask(task, delay, period);
             default:
-                return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
+                return new BukkitTaskWrapper(Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period));
         }
     }
 
@@ -242,57 +294,61 @@ public class UniversalCompatibilityManager {
 
     // === FOLIA-SPECIFIC IMPLEMENTATIONS ===
 
-    private BukkitTask runFoliaGlobalTask(Runnable task) {
+    private TaskWrapper runFoliaGlobalTask(Runnable task) {
         try {
             Object globalScheduler = Bukkit.getGlobalRegionScheduler();
             java.lang.reflect.Method runMethod = globalScheduler.getClass()
                     .getMethod("run", org.bukkit.plugin.Plugin.class, Consumer.class);
 
-            return (BukkitTask) runMethod.invoke(globalScheduler, plugin, (Consumer<Object>) scheduledTask -> task.run());
+            Object scheduledTask = runMethod.invoke(globalScheduler, plugin, (Consumer<Object>) scheduledTaskObj -> task.run());
+            return new FoliaTaskWrapper(scheduledTask);
         } catch (Exception e) {
             warning("Failed to run Folia global task, falling back to Bukkit scheduler: " + e.getMessage());
-            return Bukkit.getScheduler().runTask(plugin, task);
+            return new BukkitTaskWrapper(Bukkit.getScheduler().runTask(plugin, task));
         }
     }
 
-    private BukkitTask runFoliaAsyncTask(Runnable task) {
+    private TaskWrapper runFoliaAsyncTask(Runnable task) {
         try {
             Object asyncScheduler = Bukkit.getAsyncScheduler();
             java.lang.reflect.Method runNowMethod = asyncScheduler.getClass()
                     .getMethod("runNow", org.bukkit.plugin.Plugin.class, Consumer.class);
 
-            return (BukkitTask) runNowMethod.invoke(asyncScheduler, plugin, (Consumer<Object>) scheduledTask -> task.run());
+            Object scheduledTask = runNowMethod.invoke(asyncScheduler, plugin, (Consumer<Object>) scheduledTaskObj -> task.run());
+            return new FoliaTaskWrapper(scheduledTask);
         } catch (Exception e) {
             warning("Failed to run Folia async task, falling back to Bukkit scheduler: " + e.getMessage());
-            return Bukkit.getScheduler().runTaskAsynchronously(plugin, task);
+            return new BukkitTaskWrapper(Bukkit.getScheduler().runTaskAsynchronously(plugin, task));
         }
     }
 
-    private BukkitTask runFoliaDelayedTask(Runnable task, long delay) {
+    private TaskWrapper runFoliaDelayedTask(Runnable task, long delay) {
         try {
             Object globalScheduler = Bukkit.getGlobalRegionScheduler();
             java.lang.reflect.Method runDelayedMethod = globalScheduler.getClass()
                     .getMethod("runDelayed", org.bukkit.plugin.Plugin.class, Consumer.class, long.class);
 
-            return (BukkitTask) runDelayedMethod.invoke(globalScheduler, plugin,
-                    (Consumer<Object>) scheduledTask -> task.run(), delay);
+            Object scheduledTask = runDelayedMethod.invoke(globalScheduler, plugin,
+                    (Consumer<Object>) scheduledTaskObj -> task.run(), delay);
+            return new FoliaTaskWrapper(scheduledTask);
         } catch (Exception e) {
             warning("Failed to run Folia delayed task, falling back to Bukkit scheduler: " + e.getMessage());
-            return Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+            return new BukkitTaskWrapper(Bukkit.getScheduler().runTaskLater(plugin, task, delay));
         }
     }
 
-    private BukkitTask runFoliaTimerTask(Runnable task, long delay, long period) {
+    private TaskWrapper runFoliaTimerTask(Runnable task, long delay, long period) {
         try {
             Object globalScheduler = Bukkit.getGlobalRegionScheduler();
             java.lang.reflect.Method runAtFixedRateMethod = globalScheduler.getClass()
                     .getMethod("runAtFixedRate", org.bukkit.plugin.Plugin.class, Consumer.class, long.class, long.class);
 
-            return (BukkitTask) runAtFixedRateMethod.invoke(globalScheduler, plugin,
-                    (Consumer<Object>) scheduledTask -> task.run(), delay, period);
+            Object scheduledTask = runAtFixedRateMethod.invoke(globalScheduler, plugin,
+                    (Consumer<Object>) scheduledTaskObj -> task.run(), delay, period);
+            return new FoliaTaskWrapper(scheduledTask);
         } catch (Exception e) {
             warning("Failed to run Folia timer task, falling back to Bukkit scheduler: " + e.getMessage());
-            return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
+            return new BukkitTaskWrapper(Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period));
         }
     }
 
@@ -409,10 +465,6 @@ public class UniversalCompatibilityManager {
         return plugin;
     }
 
-    /**
-     * Creates a wrapper around existing methods that use Bukkit.getScheduler()
-     * Use this to easily convert existing code
-     */
     public static class SchedulerWrapper {
         private final UniversalCompatibilityManager manager;
 
@@ -420,19 +472,19 @@ public class UniversalCompatibilityManager {
             this.manager = manager;
         }
 
-        public BukkitTask runTask(JavaPlugin plugin, Runnable task) {
+        public TaskWrapper runTask(JavaPlugin plugin, Runnable task) {
             return manager.runTask(task);
         }
 
-        public BukkitTask runTaskAsynchronously(JavaPlugin plugin, Runnable task) {
+        public TaskWrapper runTaskAsynchronously(JavaPlugin plugin, Runnable task) {
             return manager.runTaskAsync(task);
         }
 
-        public BukkitTask runTaskLater(JavaPlugin plugin, Runnable task, long delay) {
+        public TaskWrapper runTaskLater(JavaPlugin plugin, Runnable task, long delay) {
             return manager.runTaskLater(task, delay);
         }
 
-        public BukkitTask runTaskTimer(JavaPlugin plugin, Runnable task, long delay, long period) {
+        public TaskWrapper runTaskTimer(JavaPlugin plugin, Runnable task, long delay, long period) {
             return manager.runTaskTimer(task, delay, period);
         }
     }
