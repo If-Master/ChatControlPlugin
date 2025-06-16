@@ -1,21 +1,19 @@
 package me.kanuunankuulaspluginchat.chatSystem.Commands;
 
+import me.kanuunankuulaspluginchat.chatSystem.managers.ChatManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import me.kanuunankuulaspluginchat.chatSystem.managers.ChatManager;
 
 public class ChatCommandExecutor implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player)) {
+        if (!(sender instanceof Player player)) {
             sender.sendMessage("Only players can use this command.");
             return true;
         }
-
-        Player player = (Player) sender;
 
         if (args.length == 0) {
             player.sendMessage("§cUsage: /chat <subcommand>");
@@ -27,6 +25,8 @@ public class ChatCommandExecutor implements CommandExecutor {
             case "help":
                 ChatManager.displaycommands(player);
                 break;
+            case "unblock":
+                ChatManager.unblockUser(player, args);
             case "create":
                 ChatManager.createChat(player, args);
                 break;
