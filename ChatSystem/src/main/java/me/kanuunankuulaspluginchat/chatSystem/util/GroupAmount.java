@@ -52,35 +52,35 @@ public class GroupAmount {
 
     public static CompletableFuture<Integer> getCurrentChannelCount(Player player) {
         ChatControlPlugin plugin = ChatControlPlugin.getInstance();
-        StorageManager storageManager = plugin.getStorageManager();
+        StorageManager storageManager = ChatControlPlugin.getStorageManager();
 
         return storageManager.getPlayerChannelCount(player.getUniqueId());
     }
 
     public static CompletableFuture<Void> incrementPlayerChannelCount(Player player) {
         ChatControlPlugin plugin = ChatControlPlugin.getInstance();
-        StorageManager storageManager = plugin.getStorageManager();
+        StorageManager storageManager = ChatControlPlugin.getStorageManager();
 
         return storageManager.incrementPlayerChannelCount(player.getUniqueId());
     }
 
     public static CompletableFuture<Void> decrementPlayerChannelCount(Player player) {
         ChatControlPlugin plugin = ChatControlPlugin.getInstance();
-        StorageManager storageManager = plugin.getStorageManager();
+        StorageManager storageManager = ChatControlPlugin.getStorageManager();
 
         return storageManager.decrementPlayerChannelCount(player.getUniqueId());
     }
 
     public static CompletableFuture<Void> recordChannelCreation(Player player, String channelName) {
         ChatControlPlugin plugin = ChatControlPlugin.getInstance();
-        StorageManager storageManager = plugin.getStorageManager();
+        StorageManager storageManager = ChatControlPlugin.getStorageManager();
 
         return storageManager.recordChannelCreation(player.getUniqueId(), channelName);
     }
 
     public static CompletableFuture<Void> recordChannelDeletion(Player player, String channelName) {
         ChatControlPlugin plugin = ChatControlPlugin.getInstance();
-        StorageManager storageManager = plugin.getStorageManager();
+        StorageManager storageManager = ChatControlPlugin.getStorageManager();
 
         return storageManager.recordChannelDeletion(player.getUniqueId(), channelName);
     }
