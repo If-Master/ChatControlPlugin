@@ -1,6 +1,5 @@
 package me.kanuunankuulaspluginchat.chatSystem.Commands;
 
-import me.kanuunankuulaspluginchat.chatSystem.managers.ChatManager;
 import me.kanuunankuulaspluginchat.chatSystem.managers.UserProfileManager;
 import me.kanuunankuulaspluginchat.chatSystem.models.UserChatProfile;
 import org.bukkit.Bukkit;
@@ -24,24 +23,24 @@ public class ChatCommandTabCompleter implements TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (!(sender instanceof Player)) {
+        if (!(sender instanceof Player player)) {
             return new ArrayList<>();
         }
 
-        Player player = (Player) sender;
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
             List<String> subcommands = Arrays.asList(
                     "help", "create", "join", "leave", "select", "invite",
-                    "public", "staff", "dev", "hide", "freeze", "clear"
+                    "public", "staff", "dev", "hide", "freeze", "clear",
+                    "kick", "ban", "unban", "trust", "manager", "kick",
+                    "transfer", "unblock"
             );
 
             if (player.hasPermission("chat.admin")) {
                 subcommands = new ArrayList<>(subcommands);
                 subcommands.addAll(Arrays.asList(
-                        "trust", "manager", "mute","unmute", "kick", "forcekick",
-                        "ban", "unban", "investigation", "transfer"
+                        "mute","unmute", "forcekick", "investigation"
                 ));
             }
 
