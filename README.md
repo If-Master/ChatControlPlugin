@@ -15,7 +15,7 @@
 
   Supports both MySQL and file-based data storage
 
-  Planned Folia compatibility
+  Folia compatibility
 
 # Commands:
 ```
