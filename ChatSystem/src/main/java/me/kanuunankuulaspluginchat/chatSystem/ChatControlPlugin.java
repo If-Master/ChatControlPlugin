@@ -2,16 +2,16 @@ package me.kanuunankuulaspluginchat.chatSystem;
 
 import me.kanuunankuulaspluginchat.chatSystem.Commands.ChatCommandExecutor;
 import me.kanuunankuulaspluginchat.chatSystem.Commands.ChatCommandTabCompleter;
+import me.kanuunankuulaspluginchat.chatSystem.compatibility.UniversalCompatibilityManager;
 import me.kanuunankuulaspluginchat.chatSystem.listeners.ChatEventListener;
 import me.kanuunankuulaspluginchat.chatSystem.managers.ChatManager;
 import me.kanuunankuulaspluginchat.chatSystem.managers.UserProfileManager;
 import me.kanuunankuulaspluginchat.chatSystem.storage.StorageManager;
 import me.kanuunankuulaspluginchat.chatSystem.util.GroupAmount;
-import org.bukkit.command.PluginCommand;
-import org.bukkit.plugin.java.JavaPlugin;
 import net.milkbowl.vault.chat.Chat;
-
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.RegisteredServiceProvider;
+import org.bukkit.plugin.java.JavaPlugin;
 
 public class ChatControlPlugin extends JavaPlugin {
     private static StorageManager storageManager;
@@ -20,18 +20,45 @@ public class ChatControlPlugin extends JavaPlugin {
     private static ChatManager chatManager;
     private static UserProfileManager profileManager;
     private static GroupAmount groupAmount;
+    private static UniversalCompatibilityManager compatibilityManager;
+
+    public static StorageManager getStorageManager() {
+        return storageManager;
+    }
+
+    public static ChatManager getChatManager() {
+        return chatManager;
+    }
+
+    public static GroupAmount groupAmount() {
+        return groupAmount;
+    }
+
+    public static UserProfileManager getProfileManager() {
+        return profileManager;
+    }
+
+    public static ChatControlPlugin getInstance() {
+        return instance;
+    }
+
+    public static Chat getVaultChat() {
+        return vaultChat;
+    }
 
     @Override
     public void onEnable() {
         instance = this;
-        saveDefaultConfig();
 
+        compatibilityManager = new UniversalCompatibilityManager(this);
         profileManager = new UserProfileManager(this);
         storageManager = new StorageManager(this);
         groupAmount = new GroupAmount();
 
+        saveDefaultConfig();
 
-        chatManager = new ChatManager(profileManager, storageManager, this);
+
+        chatManager = new ChatManager(profileManager, storageManager, this, compatibilityManager);
 
         PluginCommand chatCommand = getCommand("chat");
         if (chatCommand != null) {
@@ -48,25 +75,11 @@ public class ChatControlPlugin extends JavaPlugin {
         }
 
         getServer().getPluginManager().registerEvents(
-                new ChatEventListener(this, chatManager, profileManager), this
+                new ChatEventListener(this, chatManager, profileManager, compatibilityManager), this
         );
 
-        getLogger().info("ChatControlPlugin has been enabled.");
-    }
-
-    public static StorageManager getStorageManager() {
-        return storageManager;
-    }
-
-    public static ChatManager getChatManager() {
-        return chatManager;
-    }
-    public static GroupAmount groupAmount() {
-        return groupAmount;
-    }
-
-    public static UserProfileManager getProfileManager() {
-        return profileManager;
+        getLogger().info("ChatSystem has been enabled with " +
+                compatibilityManager.getServerType().name() + " compatibility!");
     }
 
     @Override
@@ -82,10 +95,6 @@ public class ChatControlPlugin extends JavaPlugin {
         getLogger().info("ChatControlPlugin has been disabled.");
     }
 
-    public static ChatControlPlugin getInstance() {
-        return instance;
-    }
-
     private boolean setupVaultChat() {
         if (getServer().getPluginManager().getPlugin("Vault") == null) {
             return false;
@@ -97,9 +106,5 @@ public class ChatControlPlugin extends JavaPlugin {
             return true;
         }
         return false;
-    }
-
-    public static Chat getVaultChat() {
-        return vaultChat;
     }
 }
