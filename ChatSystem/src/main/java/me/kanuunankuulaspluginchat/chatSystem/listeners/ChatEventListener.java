@@ -1,6 +1,7 @@
 package me.kanuunankuulaspluginchat.chatSystem.listeners;
 
 import me.kanuunankuulaspluginchat.chatSystem.ChatControlPlugin;
+import me.kanuunankuulaspluginchat.chatSystem.compatibility.UniversalCompatibilityManager;
 import me.kanuunankuulaspluginchat.chatSystem.managers.ChatManager;
 import me.kanuunankuulaspluginchat.chatSystem.managers.UserProfileManager;
 import me.kanuunankuulaspluginchat.chatSystem.models.ChatChannel;
@@ -12,6 +13,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
@@ -22,11 +24,13 @@ public class ChatEventListener implements Listener {
     private final ChatControlPlugin plugin;
     private final ChatManager chatManager;
     private final UserProfileManager profileManager;
+    private final UniversalCompatibilityManager compatibilityManager;
 
-    public ChatEventListener(ChatControlPlugin plugin, ChatManager chatManager, UserProfileManager profileManager) {
+    public ChatEventListener(ChatControlPlugin plugin, ChatManager chatManager, UserProfileManager profileManager, UniversalCompatibilityManager universalCompatibilityManager) {
         this.plugin = plugin;
         this.chatManager = chatManager;
         this.profileManager = profileManager;
+        this.compatibilityManager = universalCompatibilityManager;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -38,7 +42,10 @@ public class ChatEventListener implements Listener {
 
         ChatControlPlugin.getStorageManager().isUserBanned(player.getUniqueId()).thenAccept(isBanned -> {
             if (isBanned) {
-                player.sendMessage("§cYou are banned from using chat channels!");
+                // Use compatibility manager instead of direct scheduler access
+                compatibilityManager.runPlayerTask(player, () -> {
+                    player.sendMessage("§cYou are banned from using chat channels!");
+                });
                 return;
             }
 
@@ -46,14 +53,92 @@ public class ChatEventListener implements Listener {
         });
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
+        Player player = event.getPlayer();
+        String command = event.getMessage().toLowerCase();
+        Bukkit.getLogger().info(command);
+
+        // Check if this is a messaging command
+        if (command.startsWith("/msg") || command.startsWith("/tell") ||
+                command.startsWith("/whisper") || command.startsWith("/w") ||
+                command.startsWith("/ewhisper") || command.startsWith("/ew") ||
+                command.startsWith("/emsg") || command.startsWith("/etell") ||
+                command.startsWith("/r") || command.startsWith("/er") ||
+                command.startsWith("/reply") || command.startsWith("/ereply") ||
+                command.startsWith("/emessage") || command.startsWith("/epm") ||
+                command.startsWith("/message") || command.startsWith("/pm")) {
+
+            if (areChatsGloballyFrozen() && !player.hasPermission("chat.admin")) {
+                event.setCancelled(true);
+                compatibilityManager.runPlayerTask(player, () -> {
+                    player.sendMessage("§cPrivate messaging is disabled while chats are frozen!");
+                });
+                return;
+            }
+
+            event.setCancelled(true);
+
+            ChatControlPlugin.getStorageManager().isUserBanned(player.getUniqueId())
+                    .thenCompose(isBanned -> {
+                        if (isBanned) {
+                            compatibilityManager.runPlayerTask(player, () -> {
+                                player.sendMessage("§cYou are banned from using chat channels!");
+                            });
+                            return CompletableFuture.completedFuture("banned");
+                        }
+                        return ChatControlPlugin.getStorageManager().getChatPermission(player.getUniqueId(), "public");
+                    })
+                    .thenAccept(result -> {
+                        if ("banned".equals(result)) {
+                            return;
+                        }
+
+                        if ("muted".equals(result)) {
+                            compatibilityManager.runPlayerTask(player, () -> {
+                                player.sendMessage("§cYou are globally muted and cannot send private messages!");
+                            });
+                            return;
+                        }
+
+                        compatibilityManager.runPlayerTask(player, () -> {
+                            String originalCommand = event.getMessage();
+                            Bukkit.dispatchCommand(player, originalCommand.substring(1));
+                        });
+                    })
+                    .exceptionally(throwable -> {
+                        plugin.getLogger().severe("Error checking permissions for command: " + throwable.getMessage());
+                        compatibilityManager.runPlayerTask(player, () -> {
+                            player.sendMessage("§cAn error occurred while processing your command.");
+                        });
+                        return null;
+                    });
+        }
+    }
+
+    /**
+     * Check if chats are globally frozen by checking if all channels are frozen
+     */
+    private boolean areChatsGloballyFrozen() {
+        // Get all channels from ChatManager
+        java.util.Collection<ChatChannel> channels = ChatManager.getChannels().values();
+
+        if (channels.isEmpty()) {
+            return false;
+        }
+
+        // Check if all channels are frozen
+        return channels.stream().allMatch(ChatChannel::isFrozen);
+    }
+
     private void processChatMessage(Player player, String message) {
         UserChatProfile profile = profileManager.getProfile(player.getUniqueId());
         String currentChat = profile.getCurrentChat();
 
-        ChatChannel channel = chatManager.getChannel(currentChat);
+        ChatChannel channel = ChatManager.getChannel(currentChat);
         if (channel == null) {
             currentChat = "public";
-            channel = chatManager.getChannel("public");
+            channel = ChatManager.getChannel("public");
             profile.setCurrentChat("public");
         }
 
@@ -61,14 +146,16 @@ public class ChatEventListener implements Listener {
         final ChatChannel finalChannel = channel;
 
         if (!finalChannel.canPlayerSpeak(player)) {
-            player.sendMessage("§cYou don't have permission to speak in this chat.");
+            compatibilityManager.runPlayerTask(player, () -> {
+                player.sendMessage("§cYou don't have permission to speak in this chat.");
+            });
             return;
         }
 
         ChatControlPlugin.getStorageManager().getChatPermission(player.getUniqueId(), finalChatName)
                 .thenCompose(permission -> {
                     if ("muted".equals(permission)) {
-                        Bukkit.getScheduler().runTask(plugin, () ->
+                        compatibilityManager.runPlayerTask(player, () ->
                                 player.sendMessage("§cYou are muted in this chat."));
                         return CompletableFuture.completedFuture(null);
                     }
@@ -81,12 +168,12 @@ public class ChatEventListener implements Listener {
                     }
 
                     if (!isInChat && !finalChatName.equals("public")) {
-                        Bukkit.getScheduler().runTask(plugin, () ->
+                        compatibilityManager.runPlayerTask(player, () ->
                                 player.sendMessage("§cYou are not a member of this chat channel."));
                         return;
                     }
 
-                    Bukkit.getScheduler().runTask(plugin, () -> {
+                    compatibilityManager.runPlayerTask(player, () -> {
                         String formattedMessage = formatMessage(player, message, finalChatName);
                         sendMessageToChannel(finalChannel, player, formattedMessage, message, finalChatName);
 
@@ -97,12 +184,13 @@ public class ChatEventListener implements Listener {
                 .exceptionally(throwable -> {
                     if (throwable != null) {
                         plugin.getLogger().severe("Error processing chat message: " + throwable.getMessage());
-                        Bukkit.getScheduler().runTask(plugin, () ->
+                        compatibilityManager.runPlayerTask(player, () ->
                                 player.sendMessage("§cAn error occurred while processing your message."));
                     }
                     return null;
                 });
     }
+
     private String formatMessage(Player player, String message, String chatName) {
         Chat vaultChat = ChatControlPlugin.getVaultChat();
         String prefix = "";
@@ -116,7 +204,7 @@ public class ChatEventListener implements Listener {
             if (suffix == null) suffix = "";
         }
 
-        ChatChannel channel = chatManager.getChannel(chatName);
+        ChatChannel channel = ChatManager.getChannel(chatName);
         String channelPrefix = channel != null ? channel.getDisplayPrefix() : "";
 
         return String.format("%s%s%s%s§f: %s",
@@ -129,25 +217,15 @@ public class ChatEventListener implements Listener {
     }
 
     private void sendMessageToChannel(ChatChannel channel, Player sender, String formattedMessage, String rawMessage, String chatName) {
-
         ChatControlPlugin.getStorageManager().getChatMembers(chatName).thenAccept(members -> {
-
-            if (members != null) {
-            }
-
-            Bukkit.getScheduler().runTask(plugin, () -> {
+            compatibilityManager.runTask(() -> {
                 int recipientCount = 0;
 
                 if ("public".equals(chatName)) {
                     for (Player recipient : Bukkit.getOnlinePlayers()) {
-
                         UserChatProfile recipientProfile = profileManager.getProfile(recipient.getUniqueId());
 
-                        boolean shouldReceive = true;
-
-                        if (!recipientProfile.isChatNotificationsEnabled() && !sender.equals(recipient)) {
-                            shouldReceive = false;
-                        }
+                        boolean shouldReceive = recipientProfile.isChatNotificationsEnabled() || sender.equals(recipient);
 
                         if (recipientProfile.isChatHidden("public")) {
                             shouldReceive = false;
@@ -157,11 +235,9 @@ public class ChatEventListener implements Listener {
                             shouldReceive = false;
                         }
 
-
                         if (shouldReceive) {
                             recipient.sendMessage(formattedMessage);
                             recipientCount++;
-
                         }
                     }
                 } else {
@@ -184,9 +260,9 @@ public class ChatEventListener implements Listener {
             return null;
         });
     }
+
     private boolean shouldReceiveMessage(Player recipient, ChatChannel channel, Player sender, String chatName, java.util.Set<java.util.UUID> chatMembers) {
         UserChatProfile profile = profileManager.getProfile(recipient.getUniqueId());
-
 
         if (sender.equals(recipient)) {
             return true;
