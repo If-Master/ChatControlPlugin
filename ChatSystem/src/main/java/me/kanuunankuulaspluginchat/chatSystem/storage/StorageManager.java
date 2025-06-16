@@ -1,6 +1,8 @@
 package me.kanuunankuulaspluginchat.chatSystem.storage;
 
 import me.kanuunankuulaspluginchat.chatSystem.ChatControlPlugin;
+import me.kanuunankuulaspluginchat.chatSystem.compatibility.UniversalCompatibilityManager;
+import me.kanuunankuulaspluginchat.chatSystem.models.ChatChannel;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -8,9 +10,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.File;
 import java.io.IOException;
 import java.sql.*;
-import java.util.Map;
 import java.util.*;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -35,11 +35,15 @@ public class StorageManager {
     private final Map<UUID, Set<String>> userChatMemberships = new ConcurrentHashMap<>();
     private final Map<String, Map<UUID, String>> chatPermissions = new ConcurrentHashMap<>();
     private final Set<UUID> bannedUsers = ConcurrentHashMap.newKeySet();
+    private final Map<String, ChatChannel> channelCache = new ConcurrentHashMap<>();
+    private final Map<String, Set<UUID>> channelBlocks = new ConcurrentHashMap<>();
+    private final UniversalCompatibilityManager compatibilityManager;
 
 
     public StorageManager(ChatControlPlugin plugin) {
         this.plugin = plugin;
         this.useDatabase = plugin.getConfig().getString("storage.type", "file").equalsIgnoreCase("mysql");
+        this.compatibilityManager = new UniversalCompatibilityManager(plugin);
 
         if (useDatabase) {
             loadDatabaseConfig();
@@ -73,7 +77,42 @@ public class StorageManager {
 
         loadChannelDataFromFile();
         loadChatDataFromFile();
+        loadChannelsFromFile();
     }
+
+    public CompletableFuture<List<ChatChannel>> loadAllChannels() {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.supplyAsync(() -> {
+                List<ChatChannel> channels = new ArrayList<>();
+                String selectSQL = """
+                SELECT channel_name, channel_prefix, is_private, owner_uuid, description, required_permission 
+                FROM custom_channels 
+                WHERE is_active = TRUE
+                """;
+                try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            String name = rs.getString("channel_name");
+                            String prefix = rs.getString("channel_prefix");
+                            boolean isPrivate = rs.getBoolean("is_private");
+                            UUID owner = UUID.fromString(rs.getString("owner_uuid"));
+                            String description = rs.getString("description");
+                            String requiredPermission = rs.getString("required_permission");
+
+                            ChatChannel channel = new ChatChannel(name, prefix, isPrivate, owner, description, requiredPermission);
+                            channels.add(channel);
+                        }
+                    }
+                } catch (SQLException e) {
+                    logToConsole("Error loading channels from database: " + e.getMessage());
+                }
+                return channels;
+            });
+        } else {
+            return CompletableFuture.completedFuture(new ArrayList<>(channelCache.values()));
+        }
+    }
+
     private void loadChatDataFromFile() {
         if (chatDataConfig.getConfigurationSection("memberships") != null) {
             for (String uuidString : chatDataConfig.getConfigurationSection("memberships").getKeys(false)) {
@@ -117,6 +156,30 @@ public class StorageManager {
         }
     }
 
+
+    private void loadChannelsFromFile() {
+        if (channelDataConfig.getConfigurationSection("custom_channels") != null) {
+            for (String channelName : channelDataConfig.getConfigurationSection("custom_channels").getKeys(false)) {
+                try {
+                    String prefix = channelDataConfig.getString("custom_channels." + channelName + ".prefix");
+                    boolean isPrivate = channelDataConfig.getBoolean("custom_channels." + channelName + ".is_private", false);
+                    String ownerString = channelDataConfig.getString("custom_channels." + channelName + ".owner");
+                    String description = channelDataConfig.getString("custom_channels." + channelName + ".description");
+                    String requiredPermission = channelDataConfig.getString("custom_channels." + channelName + ".required_permission");
+
+                    if (ownerString != null) {
+                        UUID owner = UUID.fromString(ownerString);
+                        ChatChannel channel = new ChatChannel(channelName, prefix, isPrivate, owner, description, requiredPermission);
+                        channelCache.put(channelName, channel);
+                    }
+                } catch (IllegalArgumentException e) {
+                    logToConsole("Invalid data for channel: " + channelName + " - " + e.getMessage());
+                }
+            }
+        }
+    }
+
+
     private void loadChannelDataFromFile() {
         if (channelDataConfig.getConfigurationSection("players") != null) {
             for (String uuidString : channelDataConfig.getConfigurationSection("players").getKeys(false)) {
@@ -131,16 +194,6 @@ public class StorageManager {
         }
     }
 
-    private void saveChannelDataToFile() {
-        for (Map.Entry<UUID, Integer> entry : channelCountCache.entrySet()) {
-            channelDataConfig.set("players." + entry.getKey().toString() + ".channel_count", entry.getValue());
-        }
-        try {
-            channelDataConfig.save(channelDataFile);
-        } catch (IOException e) {
-            logToConsole("Failed to save channel data to file: " + e.getMessage());
-        }
-    }
 
     private void loadDatabaseConfig() {
         this.host = plugin.getConfig().getString("storage.mysql.host", "localhost");
@@ -151,7 +204,8 @@ public class StorageManager {
     }
 
     private void initializeDatabase() {
-        CompletableFuture.runAsync(() -> {
+//        CompletableFuture.runAsync(() -> {
+        compatibilityManager.runTaskAsync(() -> {
             try {
                 Class.forName("com.mysql.cj.jdbc.Driver");
 
@@ -164,6 +218,7 @@ public class StorageManager {
                 createChannelTrackingTables();
                 createChatMembershipTables();
                 createBanTable();
+                createChannelBlockTable();
 
                 logToConsole("Successfully connected to MySQL database!");
 
@@ -177,6 +232,29 @@ public class StorageManager {
                 initializeFileStorage();
             }
         });
+    }
+
+    private void createChannelBlockTable() throws SQLException {
+        String createChannelBlockSQL = """
+        CREATE TABLE IF NOT EXISTS channel_blocks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            player_uuid VARCHAR(36) NOT NULL,
+            channel_name VARCHAR(100) NOT NULL,
+            blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            blocked_by VARCHAR(36),
+            reason TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            UNIQUE KEY unique_block (player_uuid, channel_name),
+            INDEX idx_player_uuid (player_uuid),
+            INDEX idx_channel_name (channel_name),
+            INDEX idx_is_active (is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(createChannelBlockSQL)) {
+            stmt.executeUpdate();
+            logToConsole("Channel blocks table created/verified successfully.");
+        }
     }
 
     private void createChatMembershipTables() throws SQLException {
@@ -216,6 +294,31 @@ public class StorageManager {
             logToConsole("Chat membership and permission tables created/verified successfully.");
         }
     }
+
+    private void createChannelStorageTable() throws SQLException {
+        String createChannelSQL = """
+        CREATE TABLE IF NOT EXISTS custom_channels (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            channel_name VARCHAR(100) NOT NULL UNIQUE,
+            channel_prefix VARCHAR(10),
+            is_private BOOLEAN DEFAULT FALSE,
+            owner_uuid VARCHAR(36) NOT NULL,
+            description TEXT,
+            required_permission VARCHAR(100),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_active BOOLEAN DEFAULT TRUE,
+            INDEX idx_channel_name (channel_name),
+            INDEX idx_owner_uuid (owner_uuid),
+            INDEX idx_is_active (is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(createChannelSQL)) {
+            stmt.executeUpdate();
+            logToConsole("Custom channels table created/verified successfully.");
+        }
+    }
+
 
     private void createBanTable() throws SQLException {
         String createBanSQL = """
@@ -292,9 +395,172 @@ public class StorageManager {
         }
     }
 
+    public CompletableFuture<Void> blockUserFromChannel(UUID playerUuid, String channelName, UUID blockedBy, String reason) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.runAsync(() -> {
+                String insertSQL = """
+                INSERT INTO channel_blocks (player_uuid, channel_name, blocked_by, reason) 
+                VALUES (?, ?, ?, ?) 
+                ON DUPLICATE KEY UPDATE is_active = TRUE, blocked_at = CURRENT_TIMESTAMP, blocked_by = ?, reason = ?
+                """;
+                try (PreparedStatement stmt = connection.prepareStatement(insertSQL)) {
+                    stmt.setString(1, playerUuid.toString());
+                    stmt.setString(2, channelName);
+                    stmt.setString(3, blockedBy != null ? blockedBy.toString() : null);
+                    stmt.setString(4, reason);
+                    stmt.setString(5, blockedBy != null ? blockedBy.toString() : null);
+                    stmt.setString(6, reason);
+                    stmt.executeUpdate();
+                    logToConsole("Blocked user " + playerUuid + " from channel " + channelName);
+                } catch (SQLException e) {
+                    logToConsole("Error blocking user from channel: " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            });
+        } else {
+            return compatibilityManager.runAsync(() -> {
+                channelBlocks.computeIfAbsent(channelName, k -> ConcurrentHashMap.newKeySet()).add(playerUuid);
+                saveChannelDataToFile();
+                logToConsole("Blocked user " + playerUuid + " from channel " + channelName);
+            });
+        }
+    }
+
+    public CompletableFuture<Void> unblockUserFromChannel(UUID playerUuid, String channelName) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.runAsync(() -> {
+                String updateSQL = "UPDATE channel_blocks SET is_active = FALSE WHERE player_uuid = ? AND channel_name = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
+                    stmt.setString(1, playerUuid.toString());
+                    stmt.setString(2, channelName);
+                    int rowsAffected = stmt.executeUpdate();
+                    logToConsole("Unblocked user " + playerUuid + " from channel " + channelName + " (rows affected: " + rowsAffected + ")");
+                } catch (SQLException e) {
+                    logToConsole("Error unblocking user from channel: " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            });
+        } else {
+            return compatibilityManager.runAsync(() -> {
+                Set<UUID> blockedUsers = channelBlocks.get(channelName);
+                if (blockedUsers != null) {
+                    boolean removed = blockedUsers.remove(playerUuid);
+                    if (removed) {
+                        saveChannelDataToFile();
+                        logToConsole("Unblocked user " + playerUuid + " from channel " + channelName);
+                    } else {
+                        logToConsole("User " + playerUuid + " was not blocked from channel " + channelName);
+                    }
+                }
+            });
+        }
+    }
+
+    public CompletableFuture<Boolean> isUserBlockedFromChannel(UUID playerUuid, String channelName) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.supplyAsync(() -> {
+                String selectSQL = "SELECT 1 FROM channel_blocks WHERE player_uuid = ? AND channel_name = ? AND is_active = TRUE";
+                try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
+                    stmt.setString(1, playerUuid.toString());
+                    stmt.setString(2, channelName);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        boolean isBlocked = rs.next();
+                        logToConsole("User " + playerUuid + " blocked from channel " + channelName + ": " + isBlocked);
+                        return isBlocked;
+                    }
+                } catch (SQLException e) {
+                    logToConsole("Error checking if user is blocked from channel: " + e.getMessage());
+                }
+                return false;
+            });
+        } else {
+            boolean isBlocked = channelBlocks.getOrDefault(channelName, new HashSet<>()).contains(playerUuid);
+            return CompletableFuture.completedFuture(isBlocked);
+        }
+    }
+
+    public CompletableFuture<Set<String>> getUserBlockedChannels(UUID playerUuid) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.supplyAsync(() -> {
+                Set<String> blockedChannels = new HashSet<>();
+                String selectSQL = "SELECT channel_name FROM channel_blocks WHERE player_uuid = ? AND is_active = TRUE";
+                try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
+                    stmt.setString(1, playerUuid.toString());
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            blockedChannels.add(rs.getString("channel_name"));
+                        }
+                    }
+                } catch (SQLException e) {
+                    logToConsole("Error getting user blocked channels: " + e.getMessage());
+                }
+                return blockedChannels;
+            });
+        } else {
+            return compatibilityManager.supplyAsync(() -> {
+                Set<String> blockedChannels = new HashSet<>();
+                for (Map.Entry<String, Set<UUID>> entry : channelBlocks.entrySet()) {
+                    if (entry.getValue().contains(playerUuid)) {
+                        blockedChannels.add(entry.getKey());
+                    }
+                }
+                return blockedChannels;
+            });
+        }
+    }
+
+    public CompletableFuture<Void> clearAllUserBlocks(UUID playerUuid) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.runAsync(() -> {
+                String updateSQL = "UPDATE channel_blocks SET is_active = FALSE WHERE player_uuid = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
+                    stmt.setString(1, playerUuid.toString());
+                    int rowsAffected = stmt.executeUpdate();
+                    logToConsole("Cleared all blocks for user " + playerUuid + " (rows affected: " + rowsAffected + ")");
+                } catch (SQLException e) {
+                    logToConsole("Error clearing all user blocks: " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            });
+        } else {
+            return compatibilityManager.runAsync(() -> {
+                boolean changed = false;
+                for (Set<UUID> blockedUsers : channelBlocks.values()) {
+                    if (blockedUsers.remove(playerUuid)) {
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    saveChannelDataToFile();
+                    logToConsole("Cleared all blocks for user " + playerUuid);
+                }
+            });
+        }
+    }
+
+    private void loadChannelBlocksFromFile() {
+        if (channelDataConfig.getConfigurationSection("channel_blocks") != null) {
+            for (String channelName : channelDataConfig.getConfigurationSection("channel_blocks").getKeys(false)) {
+                List<String> blockedList = channelDataConfig.getStringList("channel_blocks." + channelName);
+                Set<UUID> blockedUsers = new HashSet<>();
+                for (String uuidString : blockedList) {
+                    try {
+                        blockedUsers.add(UUID.fromString(uuidString));
+                    } catch (IllegalArgumentException e) {
+                        logToConsole("Invalid UUID in channel blocks: " + uuidString);
+                    }
+                }
+                if (!blockedUsers.isEmpty()) {
+                    channelBlocks.put(channelName, blockedUsers);
+                }
+            }
+        }
+    }
+
+
     public CompletableFuture<Void> addUserToChat(UUID playerUuid, String chatName) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 String insertSQL = """
                     INSERT INTO chat_memberships (player_uuid, chat_name) 
                     VALUES (?, ?) 
@@ -309,7 +575,7 @@ public class StorageManager {
                 }
             });
         } else {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 userChatMemberships.computeIfAbsent(playerUuid, k -> new HashSet<>()).add(chatName);
                 saveChatDataToFile();
             });
@@ -318,7 +584,7 @@ public class StorageManager {
 
     public CompletableFuture<Void> removeUserFromChat(UUID playerUuid, String chatName) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 String updateSQL = "UPDATE chat_memberships SET is_active = FALSE WHERE player_uuid = ? AND chat_name = ?";
                 try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
                     stmt.setString(1, playerUuid.toString());
@@ -329,7 +595,7 @@ public class StorageManager {
                 }
             });
         } else {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 Set<String> chats = userChatMemberships.get(playerUuid);
                 if (chats != null) {
                     chats.remove(chatName);
@@ -341,13 +607,15 @@ public class StorageManager {
 
     public CompletableFuture<Boolean> isUserInChat(UUID playerUuid, String chatName) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.supplyAsync(() -> {
+            return compatibilityManager.supplyAsync(() -> {
                 String selectSQL = "SELECT 1 FROM chat_memberships WHERE player_uuid = ? AND chat_name = ? AND is_active = TRUE";
                 try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
                     stmt.setString(1, playerUuid.toString());
                     stmt.setString(2, chatName);
                     try (ResultSet rs = stmt.executeQuery()) {
-                        return rs.next();
+                        boolean inChat = rs.next();
+                        logToConsole("User " + playerUuid + " in chat " + chatName + ": " + inChat);
+                        return inChat;
                     }
                 } catch (SQLException e) {
                     logToConsole("Error checking user chat membership: " + e.getMessage());
@@ -355,15 +623,14 @@ public class StorageManager {
                 return false;
             });
         } else {
-            return CompletableFuture.completedFuture(
-                    userChatMemberships.getOrDefault(playerUuid, new HashSet<>()).contains(chatName)
-            );
+            boolean inChat = userChatMemberships.getOrDefault(playerUuid, new HashSet<>()).contains(chatName);
+            return CompletableFuture.completedFuture(inChat);
         }
     }
 
     public CompletableFuture<Set<String>> getUserChats(UUID playerUuid) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.supplyAsync(() -> {
+            return compatibilityManager.supplyAsync(() -> {
                 Set<String> chats = new HashSet<>();
                 String selectSQL = "SELECT chat_name FROM chat_memberships WHERE player_uuid = ? AND is_active = TRUE";
                 try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
@@ -386,13 +653,17 @@ public class StorageManager {
     }
 
     public CompletableFuture<Void> setChatPermission(UUID playerUuid, String chatName, String permissionLevel, UUID grantedBy) {
+        if (permissionLevel != null && !isValidPermissionLevel(permissionLevel)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid permission level: " + permissionLevel));
+        }
+
         if (useDatabase && connection != null) {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 String insertSQL = """
-                INSERT INTO chat_permissions (player_uuid, chat_name, permission_level, granted_by) 
-                VALUES (?, ?, ?, ?) 
-                ON DUPLICATE KEY UPDATE permission_level = ?, granted_at = CURRENT_TIMESTAMP, granted_by = ?
-                """;
+            INSERT INTO chat_permissions (player_uuid, chat_name, permission_level, granted_by) 
+            VALUES (?, ?, ?, ?) 
+            ON DUPLICATE KEY UPDATE permission_level = ?, granted_at = CURRENT_TIMESTAMP, granted_by = ?
+            """;
                 try (PreparedStatement stmt = connection.prepareStatement(insertSQL)) {
                     stmt.setString(1, playerUuid.toString());
                     stmt.setString(2, chatName);
@@ -400,33 +671,48 @@ public class StorageManager {
                     stmt.setString(4, grantedBy != null ? grantedBy.toString() : null);
                     stmt.setString(5, permissionLevel);
                     stmt.setString(6, grantedBy != null ? grantedBy.toString() : null);
-                    stmt.executeUpdate();
+                    int rowsAffected = stmt.executeUpdate();
+                    logToConsole("Set permission for " + playerUuid + " in " + chatName + " to " + permissionLevel + " (rows affected: " + rowsAffected + ")");
                 } catch (SQLException e) {
                     logToConsole("Error setting chat permission: " + e.getMessage());
+                    throw new RuntimeException(e);
                 }
             });
         } else {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 chatPermissions.computeIfAbsent(chatName, k -> new HashMap<>()).put(playerUuid, permissionLevel);
                 saveChatDataToFile();
+                logToConsole("Set permission for " + playerUuid + " in " + chatName + " to " + permissionLevel);
             });
         }
     }
 
+    private boolean isValidPermissionLevel(String permissionLevel) {
+        return permissionLevel != null && (
+                permissionLevel.equals("owner") ||
+                        permissionLevel.equals("manager") ||
+                        permissionLevel.equals("trusted") ||
+                        permissionLevel.equals("muted") ||
+                        permissionLevel.equals("banned")
+        );
+    }
+
+
     public CompletableFuture<Void> unmutePlayer(UUID playerUuid, String chatName) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 String deleteSQL = "DELETE FROM chat_permissions WHERE player_uuid = ? AND chat_name = ? AND permission_level = 'muted'";
                 try (PreparedStatement stmt = connection.prepareStatement(deleteSQL)) {
                     stmt.setString(1, playerUuid.toString());
                     stmt.setString(2, chatName);
+                    stmt.executeUpdate();
                 } catch (SQLException e) {
                     logToConsole("Error unmuting player: " + e.getMessage());
                     throw new RuntimeException(e);
                 }
             });
         } else {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 try {
                     Map<UUID, String> chatPerms = chatPermissions.computeIfAbsent(chatName, k -> new HashMap<>());
 
@@ -472,6 +758,93 @@ public class StorageManager {
         }
     }
 
+    private void saveChannelDataToFile() {
+        for (Map.Entry<UUID, Integer> entry : channelCountCache.entrySet()) {
+            channelDataConfig.set("players." + entry.getKey().toString() + ".channel_count", entry.getValue());
+        }
+        channelDataConfig.set("channel_blocks", null);
+        for (Map.Entry<String, Set<UUID>> entry : channelBlocks.entrySet()) {
+            String channelName = entry.getKey();
+            List<String> blockedList = new ArrayList<>();
+            for (UUID uuid : entry.getValue()) {
+                blockedList.add(uuid.toString());
+            }
+            if (!blockedList.isEmpty()) {
+                channelDataConfig.set("channel_blocks." + channelName, blockedList);
+            }
+        }
+
+        try {
+            channelDataConfig.save(channelDataFile);
+            logToConsole("Channel data with blocks successfully saved to file");
+        } catch (IOException e) {
+            logToConsole("Failed to save channel data to file: " + e.getMessage());
+        }
+    }
+
+    private void saveChannelsToFile() {
+        try {
+            channelDataConfig.set("custom_channels", null);
+
+            for (ChatChannel channel : channelCache.values()) {
+                String path = "custom_channels." + channel.getName();
+                channelDataConfig.set(path + ".prefix", channel.getPrefix());
+                channelDataConfig.set(path + ".is_private", channel.isPrivate());
+                channelDataConfig.set(path + ".owner", channel.getOwner().toString());
+                channelDataConfig.set(path + ".description", channel.getDescription());
+                channelDataConfig.set(path + ".required_permission", channel.getRequiredPermission());
+            }
+
+            channelDataConfig.save(channelDataFile);
+            logToConsole("Custom channels successfully saved to file");
+
+        } catch (IOException e) {
+            logToConsole("Failed to save custom channels to file: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public CompletableFuture<Void> saveChannel(ChatChannel channel) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.runAsync(() -> {
+                String insertSQL = """
+                INSERT INTO custom_channels (channel_name, channel_prefix, is_private, owner_uuid, description, required_permission) 
+                VALUES (?, ?, ?, ?, ?, ?) 
+                ON DUPLICATE KEY UPDATE 
+                    channel_prefix = ?, 
+                    is_private = ?, 
+                    description = ?, 
+                    required_permission = ?,
+                    is_active = TRUE
+                """;
+                try (PreparedStatement stmt = connection.prepareStatement(insertSQL)) {
+                    stmt.setString(1, channel.getName());
+                    stmt.setString(2, channel.getPrefix());
+                    stmt.setBoolean(3, channel.isPrivate());
+                    stmt.setString(4, channel.getOwner().toString());
+                    stmt.setString(5, channel.getDescription());
+                    stmt.setString(6, channel.getRequiredPermission());
+                    stmt.setString(7, channel.getPrefix());
+                    stmt.setBoolean(8, channel.isPrivate());
+                    stmt.setString(9, channel.getDescription());
+                    stmt.setString(10, channel.getRequiredPermission());
+
+                    stmt.executeUpdate();
+                    logToConsole("Saved channel: " + channel.getName());
+                } catch (SQLException e) {
+                    logToConsole("Error saving channel: " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            });
+        } else {
+            return compatibilityManager.runAsync(() -> {
+                channelCache.put(channel.getName(), channel);
+                saveChannelsToFile();
+                logToConsole("Saved channel to file: " + channel.getName());
+            });
+        }
+    }
+
     private void saveChatDataToFile() {
         try {
             chatDataConfig.set("permissions", null);
@@ -507,14 +880,16 @@ public class StorageManager {
 
     public CompletableFuture<String> getChatPermission(UUID playerUuid, String chatName) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.supplyAsync(() -> {
+            return compatibilityManager.supplyAsync(() -> {
                 String selectSQL = "SELECT permission_level FROM chat_permissions WHERE player_uuid = ? AND chat_name = ?";
                 try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
                     stmt.setString(1, playerUuid.toString());
                     stmt.setString(2, chatName);
                     try (ResultSet rs = stmt.executeQuery()) {
                         if (rs.next()) {
-                            return rs.getString("permission_level");
+                            String permission = rs.getString("permission_level");
+                            logToConsole("Retrieved permission for " + playerUuid + " in " + chatName + ": " + permission);
+                            return permission;
                         }
                     }
                 } catch (SQLException e) {
@@ -531,7 +906,7 @@ public class StorageManager {
 
     public CompletableFuture<Void> banUser(UUID playerUuid, UUID bannedBy, String reason) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 String insertSQL = """
                     INSERT INTO chat_bans (player_uuid, banned_by, reason) 
                     VALUES (?, ?, ?) 
@@ -549,7 +924,7 @@ public class StorageManager {
                 }
             });
         } else {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 bannedUsers.add(playerUuid);
                 saveChatDataToFile();
             });
@@ -558,7 +933,7 @@ public class StorageManager {
 
     public CompletableFuture<Void> unbanUser(UUID playerUuid) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 String updateSQL = "UPDATE chat_bans SET is_active = FALSE WHERE player_uuid = ?";
                 try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
                     stmt.setString(1, playerUuid.toString());
@@ -568,7 +943,7 @@ public class StorageManager {
                 }
             });
         } else {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 bannedUsers.remove(playerUuid);
                 saveChatDataToFile();
             });
@@ -577,7 +952,7 @@ public class StorageManager {
 
     public CompletableFuture<Boolean> isUserBanned(UUID playerUuid) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.supplyAsync(() -> {
+            return compatibilityManager.supplyAsync(() -> {
                 String selectSQL = "SELECT 1 FROM chat_bans WHERE player_uuid = ? AND is_active = TRUE";
                 try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
                     stmt.setString(1, playerUuid.toString());
@@ -597,7 +972,7 @@ public class StorageManager {
 
     public CompletableFuture<Integer> getPlayerChannelCount(UUID playerUuid) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.supplyAsync(() -> {
+            return compatibilityManager.supplyAsync(() -> {
                 String selectSQL = "SELECT channel_count FROM player_channels WHERE player_uuid = ?";
                 try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
                     stmt.setString(1, playerUuid.toString());
@@ -618,7 +993,7 @@ public class StorageManager {
 
     public CompletableFuture<Void> incrementPlayerChannelCount(UUID playerUuid) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 String upsertSQL = """
                     INSERT INTO player_channels (player_uuid, channel_count) 
                     VALUES (?, 1) 
@@ -632,7 +1007,7 @@ public class StorageManager {
                 }
             });
         } else {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 int currentCount = channelCountCache.getOrDefault(playerUuid, 0);
                 channelCountCache.put(playerUuid, currentCount + 1);
                 saveChannelDataToFile();
@@ -642,7 +1017,7 @@ public class StorageManager {
 
     public CompletableFuture<Void> decrementPlayerChannelCount(UUID playerUuid) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 String updateSQL = """
                     UPDATE player_channels 
                     SET channel_count = GREATEST(0, channel_count - 1) 
@@ -656,7 +1031,7 @@ public class StorageManager {
                 }
             });
         } else {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 int currentCount = channelCountCache.getOrDefault(playerUuid, 0);
                 channelCountCache.put(playerUuid, Math.max(0, currentCount - 1));
                 saveChannelDataToFile();
@@ -720,7 +1095,7 @@ public class StorageManager {
         String fullMsg = "[" + chatName + "] " + sender + ": " + message;
 
         if (useDatabase && connection != null) {
-            CompletableFuture.runAsync(() -> {
+            compatibilityManager.runAsync(() -> {
                 try {
                     insertChatMessage(chatName, sender, message);
                 } catch (SQLException e) {
@@ -760,11 +1135,12 @@ public class StorageManager {
         if (!useDatabase) {
             saveChannelDataToFile();
             saveChatDataToFile();
+            saveChannelsToFile();
         }
     }
 
     public CompletableFuture<java.util.List<ChatMessage>> getChatHistory(String chatName, int limit) {
-        return CompletableFuture.supplyAsync(() -> {
+        return compatibilityManager.supplyAsync(() -> {
             if (!useDatabase || connection == null) {
                 return new java.util.ArrayList<>();
             }
@@ -795,7 +1171,7 @@ public class StorageManager {
 
     public CompletableFuture<Void> removeChatPermission(UUID playerUuid, String chatName) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 String deleteSQL = "DELETE FROM chat_permissions WHERE player_uuid = ? AND chat_name = ?";
                 try (PreparedStatement stmt = connection.prepareStatement(deleteSQL)) {
                     stmt.setString(1, playerUuid.toString());
@@ -806,7 +1182,7 @@ public class StorageManager {
                 }
             });
         } else {
-            return CompletableFuture.runAsync(() -> {
+            return compatibilityManager.runAsync(() -> {
                 Map<UUID, String> chatPerms = chatPermissions.get(chatName);
                 if (chatPerms != null) {
                     chatPerms.remove(playerUuid);
@@ -816,9 +1192,40 @@ public class StorageManager {
         }
     }
 
+    public CompletableFuture<Void> deleteChannel(String channelName) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.runAsync(() -> {
+                String updateSQL = "UPDATE custom_channels SET is_active = FALSE WHERE channel_name = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
+                    stmt.setString(1, channelName);
+                    int rowsAffected = stmt.executeUpdate();
+                    if (rowsAffected > 0) {
+                        logToConsole("Deleted channel from database: " + channelName);
+                    } else {
+                        logToConsole("Channel not found in database: " + channelName);
+                    }
+                } catch (SQLException e) {
+                    logToConsole("Error deleting channel from database: " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            });
+        } else {
+            return compatibilityManager.runAsync(() -> {
+                ChatChannel removed = channelCache.remove(channelName);
+                if (removed != null) {
+                    saveChannelsToFile();
+                    logToConsole("Deleted channel from file: " + channelName);
+                } else {
+                    logToConsole("Channel not found in cache: " + channelName);
+                }
+            });
+        }
+    }
+
+
     public CompletableFuture<Map<UUID, String>> getChatPermissions(String chatName) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.supplyAsync(() -> {
+            return compatibilityManager.supplyAsync(() -> {
                 Map<UUID, String> permissions = new HashMap<>();
                 String selectSQL = "SELECT player_uuid, permission_level FROM chat_permissions WHERE chat_name = ?";
                 try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
@@ -843,7 +1250,7 @@ public class StorageManager {
 
     public CompletableFuture<Set<UUID>> getChatMembers(String chatName) {
         if (useDatabase && connection != null) {
-            return CompletableFuture.supplyAsync(() -> {
+            return compatibilityManager.supplyAsync(() -> {
                 Set<UUID> members = new HashSet<>();
                 String selectSQL = "SELECT player_uuid FROM chat_memberships WHERE chat_name = ? AND is_active = TRUE";
                 try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
@@ -859,7 +1266,7 @@ public class StorageManager {
                 return members;
             });
         } else {
-            return CompletableFuture.supplyAsync(() -> {
+            return compatibilityManager.supplyAsync(() -> {
                 Set<UUID> members = new HashSet<>();
                 for (Map.Entry<UUID, Set<String>> entry : userChatMemberships.entrySet()) {
                     if (entry.getValue().contains(chatName)) {
