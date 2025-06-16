@@ -11,63 +11,61 @@ public class ChatChannel {
     private final String name;
     private final String displayPrefix;
     private final boolean isPrivate;
-    private String description;
-    private UUID owner;
-    private String requiredPermission;
-    private boolean frozen = false;
-    private StorageManager storageManager;
-
+    private final String prefix;
     private final Set<UUID> members = ConcurrentHashMap.newKeySet();
     private final Set<UUID> managers = ConcurrentHashMap.newKeySet();
     private final Set<UUID> trusted = ConcurrentHashMap.newKeySet();
     private final Set<UUID> muted = ConcurrentHashMap.newKeySet();
     private final Set<UUID> banned = ConcurrentHashMap.newKeySet();
-
+    private final long createdTime;
+    private String description;
+    private UUID owner;
+    private String requiredPermission;
+    private boolean frozen = false;
+    private StorageManager storageManager;
     private boolean allowInvites = true;
     private boolean autoJoin = false;
     private int maxMembers = 100;
-    private final long createdTime;
 
-    public ChatChannel(String name, String displayPrefix, boolean isPrivate) {
+    public ChatChannel(String name, String displayPrefix, boolean isPrivate, UUID owner, String description, String requiredPermission) {
         this.name = name.toLowerCase();
         this.displayPrefix = displayPrefix;
+        this.prefix = displayPrefix;
+
         this.isPrivate = isPrivate;
         this.createdTime = System.currentTimeMillis();
         this.storageManager = storageManager;
+        this.requiredPermission = requiredPermission;
+        this.description = description;
+        this.owner = owner;
+
 
     }
 
-    public String getName() {
-        return name;
-    }
+
+    public String getName() { return name; }
 
     public String getDisplayPrefix() {
         return displayPrefix;
     }
 
-    public boolean isPrivate() {
-        return isPrivate;
-    }
+    public String getPrefix() { return prefix; }
 
-    public String getDescription() {
-        return description;
-    }
+    public boolean isPrivate() { return isPrivate; }
+
+    public String getDescription() { return description; }
 
     public void setDescription(String description) {
         this.description = description;
     }
 
-    public UUID getOwner() {
-        return owner;
-    }
+    public UUID getOwner() { return owner; }
 
     public void setOwner(UUID owner) {
         this.owner = owner;
     }
 
-    public String getRequiredPermission() {
-        return requiredPermission;
-    }
+    public String getRequiredPermission() { return requiredPermission; }
 
     public void setRequiredPermission(String requiredPermission) {
         this.requiredPermission = requiredPermission;
@@ -124,11 +122,7 @@ public class ChatChannel {
             return false;
         }
 
-        if (isPrivate && !isOwner(playerId) && !managers.contains(playerId) && !trusted.contains(playerId)) {
-            return false;
-        }
-
-        return true;
+        return !isPrivate || isOwner(playerId) || managers.contains(playerId) || trusted.contains(playerId);
     }
 
     public boolean canPlayerSpeak(Player player) {
@@ -142,11 +136,7 @@ public class ChatChannel {
             return false;
         }
 
-        if (banned.contains(playerId)) {
-            return false;
-        }
-
-        return true;
+        return !banned.contains(playerId);
     }
 
     public boolean canPlayerReceive(Player player) {
@@ -156,11 +146,7 @@ public class ChatChannel {
             return false;
         }
 
-        if (isPrivate && requiredPermission != null && !player.hasPermission(requiredPermission)) {
-            return false;
-        }
-
-        return true;
+        return !isPrivate || requiredPermission == null || player.hasPermission(requiredPermission);
     }
 
     public boolean canPlayerInvite(Player player) {
