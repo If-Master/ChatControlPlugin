@@ -1,6 +1,7 @@
 package me.kanuunankuulaspluginchat.chatSystem.storage;
 
 import me.kanuunankuulaspluginchat.chatSystem.ChatControlPlugin;
+import me.kanuunankuulaspluginchat.chatSystem.Language.LanguageManager;
 import me.kanuunankuulaspluginchat.chatSystem.compatibility.UniversalCompatibilityManager;
 import me.kanuunankuulaspluginchat.chatSystem.models.ChatChannel;
 import org.bukkit.Bukkit;
@@ -38,12 +39,14 @@ public class StorageManager {
     private final Map<String, ChatChannel> channelCache = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> channelBlocks = new ConcurrentHashMap<>();
     private final UniversalCompatibilityManager compatibilityManager;
+    private final Map<UUID, Set<String>> chatInvitations = new ConcurrentHashMap<>();
 
 
-    public StorageManager(ChatControlPlugin plugin) {
+
+    public StorageManager(ChatControlPlugin plugin, LanguageManager languageManager) {
         this.plugin = plugin;
         this.useDatabase = plugin.getConfig().getString("storage.type", "file").equalsIgnoreCase("mysql");
-        this.compatibilityManager = new UniversalCompatibilityManager(plugin);
+        this.compatibilityManager = new UniversalCompatibilityManager(plugin, languageManager);
 
         if (useDatabase) {
             loadDatabaseConfig();
@@ -204,7 +207,6 @@ public class StorageManager {
     }
 
     private void initializeDatabase() {
-//        CompletableFuture.runAsync(() -> {
         compatibilityManager.runTaskAsync(() -> {
             try {
                 Class.forName("com.mysql.cj.jdbc.Driver");
@@ -219,6 +221,7 @@ public class StorageManager {
                 createChatMembershipTables();
                 createBanTable();
                 createChannelBlockTable();
+                createChatInvitationsTable();
 
                 logToConsole("Successfully connected to MySQL database!");
 
@@ -233,6 +236,31 @@ public class StorageManager {
             }
         });
     }
+
+    private void createChatInvitationsTable() throws SQLException {
+        String createInvitationsSQL = """
+        CREATE TABLE IF NOT EXISTS chat_invitations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            invited_player_uuid VARCHAR(36) NOT NULL,
+            chat_name VARCHAR(100) NOT NULL,
+            invited_by_uuid VARCHAR(36) NOT NULL,
+            invited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NULL,
+            is_active BOOLEAN DEFAULT TRUE,
+            UNIQUE KEY unique_invitation (invited_player_uuid, chat_name),
+            INDEX idx_invited_player (invited_player_uuid),
+            INDEX idx_chat_name (chat_name),
+            INDEX idx_invited_by (invited_by_uuid),
+            INDEX idx_is_active (is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(createInvitationsSQL)) {
+            stmt.executeUpdate();
+            logToConsole("Chat invitations table created/verified successfully.");
+        }
+    }
+
 
     private void createChannelBlockTable() throws SQLException {
         String createChannelBlockSQL = """
@@ -758,6 +786,39 @@ public class StorageManager {
         }
     }
 
+    public CompletableFuture<Void> addChatInvitation(UUID invitedPlayer, String chatName, UUID invitedBy) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.runAsync(() -> {
+                String insertSQL = """
+                INSERT INTO chat_invitations (invited_player_uuid, chat_name, invited_by_uuid) 
+                VALUES (?, ?, ?) 
+                ON DUPLICATE KEY UPDATE 
+                    invited_by_uuid = ?, 
+                    invited_at = CURRENT_TIMESTAMP, 
+                    is_active = TRUE
+                """;
+                try (PreparedStatement stmt = connection.prepareStatement(insertSQL)) {
+                    stmt.setString(1, invitedPlayer.toString());
+                    stmt.setString(2, chatName);
+                    stmt.setString(3, invitedBy.toString());
+                    stmt.setString(4, invitedBy.toString());
+                    stmt.executeUpdate();
+                    logToConsole("Added chat invitation for " + invitedPlayer + " to chat " + chatName);
+                } catch (SQLException e) {
+                    logToConsole("Error adding chat invitation: " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            });
+        } else {
+            return compatibilityManager.runAsync(() -> {
+                chatInvitations.computeIfAbsent(invitedPlayer, k -> ConcurrentHashMap.newKeySet()).add(chatName);
+                saveChatDataToFile();
+                logToConsole("Added chat invitation for " + invitedPlayer + " to chat " + chatName);
+            });
+        }
+    }
+
+
     private void saveChannelDataToFile() {
         for (Map.Entry<UUID, Integer> entry : channelCountCache.entrySet()) {
             channelDataConfig.set("players." + entry.getKey().toString() + ".channel_count", entry.getValue());
@@ -863,6 +924,13 @@ public class StorageManager {
                 }
             }
 
+            for (Map.Entry<UUID, Set<String>> entry : chatInvitations.entrySet()) {
+                if (!entry.getValue().isEmpty()) {
+                    chatDataConfig.set("invitations." + entry.getKey().toString(), new ArrayList<>(entry.getValue()));
+                }
+            }
+
+
             List<String> bannedList = new ArrayList<>();
             for (UUID uuid : bannedUsers) {
                 bannedList.add(uuid.toString());
@@ -877,6 +945,35 @@ public class StorageManager {
             e.printStackTrace();
         }
     }
+
+    public CompletableFuture<Void> removeInvitation(UUID playerUuid, String chatName) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.runAsync(() -> {
+                String updateSQL = "UPDATE chat_invitations SET is_active = FALSE WHERE invited_player_uuid = ? AND chat_name = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
+                    stmt.setString(1, playerUuid.toString());
+                    stmt.setString(2, chatName);
+                    int rowsAffected = stmt.executeUpdate();
+                    logToConsole("Removed chat invitation for " + playerUuid + " from chat " + chatName + " (rows affected: " + rowsAffected + ")");
+                } catch (SQLException e) {
+                    logToConsole("Error removing chat invitation: " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            });
+        } else {
+            return compatibilityManager.runAsync(() -> {
+                Set<String> invitations = chatInvitations.get(playerUuid);
+                if (invitations != null) {
+                    boolean removed = invitations.remove(chatName);
+                    if (removed) {
+                        saveChatDataToFile();
+                        logToConsole("Removed chat invitation for " + playerUuid + " from chat " + chatName);
+                    }
+                }
+            });
+        }
+    }
+
 
     public CompletableFuture<String> getChatPermission(UUID playerUuid, String chatName) {
         if (useDatabase && connection != null) {
@@ -931,6 +1028,30 @@ public class StorageManager {
         }
     }
 
+    public CompletableFuture<Boolean> hasInvitation(UUID playerUuid, String chatName) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.supplyAsync(() -> {
+                String selectSQL = "SELECT 1 FROM chat_invitations WHERE invited_player_uuid = ? AND chat_name = ? AND is_active = TRUE";
+                try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
+                    stmt.setString(1, playerUuid.toString());
+                    stmt.setString(2, chatName);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        boolean hasInvitation = rs.next();
+                        logToConsole("Player " + playerUuid + " has invitation to " + chatName + ": " + hasInvitation);
+                        return hasInvitation;
+                    }
+                } catch (SQLException e) {
+                    logToConsole("Error checking chat invitation: " + e.getMessage());
+                }
+                return false;
+            });
+        } else {
+            boolean hasInvitation = chatInvitations.getOrDefault(playerUuid, new HashSet<>()).contains(chatName);
+            return CompletableFuture.completedFuture(hasInvitation);
+        }
+    }
+
+
     public CompletableFuture<Void> unbanUser(UUID playerUuid) {
         if (useDatabase && connection != null) {
             return compatibilityManager.runAsync(() -> {
@@ -966,6 +1087,67 @@ public class StorageManager {
             });
         } else {
             return CompletableFuture.completedFuture(bannedUsers.contains(playerUuid));
+        }
+    }
+
+    public CompletableFuture<Set<String>> getPlayerInvitations(UUID playerUuid) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.supplyAsync(() -> {
+                Set<String> invitations = new HashSet<>();
+                String selectSQL = "SELECT chat_name FROM chat_invitations WHERE invited_player_uuid = ? AND is_active = TRUE";
+                try (PreparedStatement stmt = connection.prepareStatement(selectSQL)) {
+                    stmt.setString(1, playerUuid.toString());
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            invitations.add(rs.getString("chat_name"));
+                        }
+                    }
+                } catch (SQLException e) {
+                    logToConsole("Error getting player invitations: " + e.getMessage());
+                }
+                return invitations;
+            });
+        } else {
+            return CompletableFuture.completedFuture(
+                    new HashSet<>(chatInvitations.getOrDefault(playerUuid, new HashSet<>()))
+            );
+        }
+    }
+    public CompletableFuture<Void> clearPlayerInvitations(UUID playerUuid) {
+        if (useDatabase && connection != null) {
+            return compatibilityManager.runAsync(() -> {
+                String updateSQL = "UPDATE chat_invitations SET is_active = FALSE WHERE invited_player_uuid = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
+                    stmt.setString(1, playerUuid.toString());
+                    int rowsAffected = stmt.executeUpdate();
+                    logToConsole("Cleared all invitations for " + playerUuid + " (rows affected: " + rowsAffected + ")");
+                } catch (SQLException e) {
+                    logToConsole("Error clearing player invitations: " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            });
+        } else {
+            return compatibilityManager.runAsync(() -> {
+                Set<String> removed = chatInvitations.remove(playerUuid);
+                if (removed != null && !removed.isEmpty()) {
+                    saveChatDataToFile();
+                    logToConsole("Cleared all invitations for " + playerUuid);
+                }
+            });
+        }
+    }
+
+    private void loadChatInvitationsFromFile() {
+        if (chatDataConfig.getConfigurationSection("invitations") != null) {
+            for (String uuidString : chatDataConfig.getConfigurationSection("invitations").getKeys(false)) {
+                try {
+                    UUID uuid = UUID.fromString(uuidString);
+                    List<String> invites = chatDataConfig.getStringList("invitations." + uuidString);
+                    chatInvitations.put(uuid, new HashSet<>(invites));
+                } catch (IllegalArgumentException e) {
+                    logToConsole("Invalid UUID in chat invitations: " + uuidString);
+                }
+            }
         }
     }
 
@@ -1280,7 +1462,7 @@ public class StorageManager {
 
 
     private void logToConsole(String msg) {
-        Bukkit.getLogger().info("[ChatControl] " + msg);
+        Bukkit.getLogger().info("(Translations Service Unavailable for Storage related issues) [ChatControl] " + msg);
     }
 
     public static class ChatMessage {
