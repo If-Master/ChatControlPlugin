@@ -1,8 +1,9 @@
 name: ChatControlPlugin
-version: 1.0.1
+version: 1.0.2
 main: me.kanuunankuulaspluginchat.chatSystem.ChatControlPlugin
 api-version: 1.21
 authors: [Kanuunankuula ( If_Master )]
+website: https://www.spigotmc.org/resources/chatcontrolplugin.126110/
 description: Advanced chat system with multiple channels and EssentialsChat integration
 softdepend: [Vault, EssentialsChat]
 folia-supported: true
@@ -12,10 +13,24 @@ commands:
     description: Main chat command
     usage: /chat <subcommand>
     aliases: [ch, chatcontrol]
+  cg_updatecheck:
+    description: Check for plugin updates
+    usage: /cg_updatecheck
+    permission: chat.admin
+    permission-message: You don't have permission to use this command.
+  cg_update:
+    description: Download and install plugin updates
+    usage: /cg_update [confirm]
+    permission: chat.admin
+    permission-message: You don't have permission to use this command.
+
 
 permissions:
   chat.forcejoin:
     description: Access to all chat channels
+    default: op
+  chat.updatefunction:
+    description: Access to the update function
     default: op
   chat.admin:
     description: Access to all chat admin commands
