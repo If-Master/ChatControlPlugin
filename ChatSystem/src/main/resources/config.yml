@@ -1,3 +1,12 @@
+# Supported languages:
+# en (English), fi (Suomi), sv (Svenska), es (Español)
+language: "en"
+
+update-checker:
+  enabled: true
+  notify-ops-only: true
+  resource-id: "126110"
+
 # Server identification
 server-name: "MyServer"
 
