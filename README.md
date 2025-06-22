@@ -148,6 +148,10 @@ logging:
 /chat investigation <player> - Toggle investigation mode  
 /chat transfer <player> <channel> - Transfer channel ownership  
 
+
+
+/cg_update
+/cg_updatecheck
 ```
 # Permissions
 ```
