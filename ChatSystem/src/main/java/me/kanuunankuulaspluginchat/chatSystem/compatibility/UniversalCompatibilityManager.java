@@ -29,13 +29,11 @@ public class UniversalCompatibilityManager {
         BUKKIT
     }
 
-    // Wrapper interface for task objects
     public interface TaskWrapper {
         void cancel();
         boolean isCancelled();
     }
 
-    // Implementation for BukkitTask
     private static class BukkitTaskWrapper implements TaskWrapper {
         private final BukkitTask task;
 
@@ -54,7 +52,6 @@ public class UniversalCompatibilityManager {
         }
     }
 
-    // Implementation for Folia tasks
     private static class FoliaTaskWrapper implements TaskWrapper {
         private final Object task;
 
@@ -68,7 +65,6 @@ public class UniversalCompatibilityManager {
                 java.lang.reflect.Method cancelMethod = task.getClass().getMethod("cancel");
                 cancelMethod.invoke(task);
             } catch (Exception e) {
-                // Handle silently or log if needed
             }
         }
 
