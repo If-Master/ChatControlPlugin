@@ -1,11 +1,14 @@
 package me.kanuunankuulaspluginchat.chatSystem.managers;
 
+import me.kanuunankuulaspluginchat.chatSystem.Language.LanguageManager;
 import me.kanuunankuulaspluginchat.chatSystem.compatibility.UniversalCompatibilityManager;
+import me.kanuunankuulaspluginchat.chatSystem.Language.Messager;
 import me.kanuunankuulaspluginchat.chatSystem.models.ChatChannel;
 import me.kanuunankuulaspluginchat.chatSystem.models.UserChatProfile;
 import me.kanuunankuulaspluginchat.chatSystem.storage.StorageManager;
 import me.kanuunankuulaspluginchat.chatSystem.util.GroupAmount;
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
@@ -22,32 +25,50 @@ public class ChatManager {
     private static UserProfileManager profileManager;
     private static StorageManager storageManager;
     private static Plugin chatControlPlugin;
+    private static Messager messager;
+    private static LanguageManager languageManager;
+    private static String language;
+    private static String defaultLanguageKey;
+
     private static UniversalCompatibilityManager compatibilityManager;
     private static Boolean displayusername;
     private static boolean globallyFrozen = false;
+    static String languagekey;
 
 
-    public ChatManager(UserProfileManager profileManager, StorageManager storageManager, Plugin plugin, UniversalCompatibilityManager compatibilityManager) {
-        if (profileManager == null) {
-            throw new IllegalArgumentException("UserProfileManager cannot be null");
-        }
-        if (storageManager == null) {
-            throw new IllegalArgumentException("StorageManager cannot be null");
-        }
-        if (plugin == null) {
-            throw new IllegalArgumentException("Plugin cannot be null");
-        }
-        if (compatibilityManager == null) {
-            throw new IllegalArgumentException("UniversalCompatibilityManager cannot be null");
-        }
 
-        ChatManager.profileManager = profileManager;
-        ChatManager.storageManager = storageManager;
-        ChatManager.chatControlPlugin = plugin;
-        ChatManager.compatibilityManager = compatibilityManager;
+
+    public ChatManager(UserProfileManager profilemanager, StorageManager storagemanager, Plugin plugin, UniversalCompatibilityManager compatibilitymanager, Messager Messager, LanguageManager languagemanager) {
+
+        chatControlPlugin = plugin;
+        languageManager = languagemanager;
+        messager = Messager;
+        profileManager = profilemanager;
+        storageManager = storagemanager;
+        compatibilityManager = compatibilitymanager;
 
         initializeDefaultChannels();
         displayusername = chatControlPlugin.getConfig().getBoolean("Display_Admin");
+        defaultLanguageKey = GetLanguageKey();
+        languagekey = GetLanguageKey();
+    }
+
+    private static String GetLanguage() {
+        FileConfiguration config = chatControlPlugin.getConfig();
+        String configLanguage = config.getString("language", "en");
+
+        if (LanguageManager.isLanguageSupported(configLanguage)) {
+            return configLanguage;
+        } else {
+            return "en";
+        }
+
+    }
+
+    private static String GetLanguageKey() {
+        GetLanguage();
+        language = GetLanguage();
+        return GetLanguage();
     }
 
     public static ChatChannel getChannel(String name) {
@@ -58,49 +79,47 @@ public class ChatManager {
     }
 
     public static void displaycommands(Player player) {
-        player.sendMessage("§6=== Chat Commands ===");
-        player.sendMessage("§e/chat help §7- Show this help menu");
-        player.sendMessage("§e/chat public §7- Switch to public chat");
-        player.sendMessage("§e/chat join <name> §7- Join a chat channel");
-        player.sendMessage("§e/chat leave <name> §7- Leave a chat channel");
-        player.sendMessage("§e/chat create <name> §7- Create a new chat channel");
-        player.sendMessage("§e/chat select <name> §7- Switch to a chat channel");
-        player.sendMessage("§e/chat invite <player> <channel> §7- Invite a player to a channel");
-        player.sendMessage("§e/chat hide <channel> §7- Hide/unhide a channel");
 
+        messager.sendMessage(player, "Help_message_1");
+        messager.sendMessage(player, "Help_message_2");
+        messager.sendMessage(player, "Help_message_3");
+        messager.sendMessage(player, "Help_message_4");
+        messager.sendMessage(player, "Help_message_5");
+        messager.sendMessage(player, "Help_message_6");
+        messager.sendMessage(player, "Help_message_7");
+        messager.sendMessage(player, "Help_message_8");
+        messager.sendMessage(player, "Help_message_9");
 
         if (player.hasPermission("chat.admin")) {
-            player.sendMessage("§c=== Admin Commands ===");
-            player.sendMessage("§e/chat staff §7- Switch to staff chat");
-            player.sendMessage("§e/chat mute <player> <channel> §7- Mute a player in channel");
-            player.sendMessage("§e/chat unmute <player> <channel> §7- Unmute a player in channel");
-            player.sendMessage("§e/chat ban <player>  §7- Ban a player from all channel");
-            player.sendMessage("§e/chat unban <player> §7- Unban a player from all chats");
-            player.sendMessage("§e/chat investigation <player> §7- Toggle investigation mode");
-            player.sendMessage("§e/chat freeze §7- Toggle chat freeze mode");
-            player.sendMessage("§e/chat clear §7- Clear chat history");
+            messager.sendMessage(player, "Help_message_10");
+            messager.sendMessage(player, "Help_message_11");
+            messager.sendMessage(player, "Help_message_12");
+            messager.sendMessage(player, "Help_message_13");
+            messager.sendMessage(player, "Help_message_14");
+            messager.sendMessage(player, "Help_message_15");
+            messager.sendMessage(player, "Help_message_16");
+            messager.sendMessage(player, "Help_message_17");
+            messager.sendMessage(player, "Help_message_18");
         }
         if (player.hasPermission("chat.dev")) {
-            player.sendMessage("§e/chat dev §7- Switch to dev chat");
+            messager.sendMessage(player, "Help_message_19");
 
         }
-        player.sendMessage("§e=== Channel Management ===");
-        player.sendMessage("§e/chat kick <player> <channel> §7- Kick a player from your channel");
-        player.sendMessage("§e/chat transfer <player> <channel> §7- Transfer your channel ownership");
-        player.sendMessage("§e/chat trust <player> <channel> §7- Trust a player in your channel");
-        player.sendMessage("§e/chat manager <player> <channel> §7- Make player a manager in your channel");
-        player.sendMessage("§e/chat unblock <player> <channel> §7- Unblock a player from your channel");
-
+        messager.sendMessage(player, "Help_message_20");
+        messager.sendMessage(player, "Help_message_21");
+        messager.sendMessage(player, "Help_message_22");
+        messager.sendMessage(player, "Help_message_23");
+        messager.sendMessage(player, "Help_message_24");
     }
 
     public static void createChat(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /chat create <name>");
+            messager.sendMessage(player, "Help_warnings_2");
             return;
         }
 
@@ -108,22 +127,24 @@ public class ChatManager {
 
         storageManager.isUserBanned(player.getUniqueId()).thenAccept(isBanned -> {
             if (isBanned) {
-                player.sendMessage("§cYou are banned from creating chat channels!");
+                messager.sendMessage(player, "Help_warnings_3");
                 return;
             }
 
             GroupAmount.canPlayerCreateChannel(player).thenAccept(canCreate -> {
                 if (canCreate) {
                     if (channels.containsKey(chatName)) {
-                        player.sendMessage("§cA chat channel with that name already exists!");
+                        messager.sendMessage(player, "Chat_Warnings_1");
                         return;
                     }
                     if (chatName.length() > 16) {
-                        player.sendMessage("§cChat name must be 16 characters or less!");
+                        messager.sendMessage(player, "Chat_Warnings_2");
                         return;
                     }
 
-                    String description = "Custom chat channel created by " + player.getName();
+                    String Msg = LanguageManager.get("Chat_Warnings_3", languagekey);
+
+                    String description = Msg + player.getName();
                     ChatChannel channel = new ChatChannel(chatName, "§7[§e" + chatName + "§7] ", true, player.getUniqueId(), description, null);
 
                     channels.put(chatName, channel);
@@ -138,10 +159,11 @@ public class ChatManager {
 
                     storageManager.addUserToChat(player.getUniqueId(), chatName);
 
-                    player.sendMessage("§aSuccessfully created chat channel: §e" + chatName);
-                    player.sendMessage("§7You have been automatically added to the channel.");
+                    String Msg2 = LanguageManager.get("Chat_Warnings_3", languagekey);
+                    player.sendMessage(Msg2 + chatName);
+                    messager.sendMessage(player, "Chat_Warnings_6");
                 } else {
-                    player.sendMessage("§cYou've reached your channel limit!");
+                    messager.sendMessage(player, "Chat_Warnings_7");
                 }
             });
         });
@@ -149,12 +171,12 @@ public class ChatManager {
 
     public static void joinChat(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /chat join <name>");
+            messager.sendMessage(player, "Chat_Warnings_8");
             return;
         }
 
@@ -162,7 +184,7 @@ public class ChatManager {
         ChatChannel channel = channels.get(chatName);
 
         if (channel == null) {
-            player.sendMessage("§cThat chat channel doesn't exist!");
+            messager.sendMessage(player, "Chat_Warnings_9");
             return;
         }
 
@@ -170,29 +192,40 @@ public class ChatManager {
             if (isBanned) {
                 storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
                     if (!"owner".equals(permission)) {
-                        player.sendMessage("§cYou are banned from joining chat channels!");
+                        messager.sendMessage(player, "Chat_Warnings_10");
                         return;
                     }
 
                     storageManager.isUserBlockedFromChannel(player.getUniqueId(), chatName).thenAccept(isBlocked -> {
                                 if (isBlocked) {
-                                    player.sendMessage("§cYou cannot join this channel! You need to be re-invited.");
+                                    messager.sendMessage(player, "Chat_Warnings_11");
                                     return;
                                 }
 
                                 if (!channel.canPlayerJoin(player) && !player.hasPermission("chat.forcejoin")) {
-                                    player.sendMessage("§cYou don't have permission to join that chat!");
+                                    messager.sendMessage(player, "Chat_Warnings_12");
+
                                     return;
                                 }
+                        storageManager.hasInvitation(player.getUniqueId(), chatName).thenAccept(hasInvite -> {
+                            if (hasInvite || channel.canPlayerJoin(player) || player.hasPermission("chat.forcejoin")) {
+                                if (hasInvite) {
+                                    storageManager.removeInvitation(player.getUniqueId(), chatName);
+                                }
+                                joinChatInternal(player, chatName, channel);
+                            } else {
+                                messager.sendMessage(player, "Chat_Warnings_12");
+                            }
+                        });
 
-                        joinChatInternal(player, chatName, channel);
                     });
                 });
                 return;
             }
 
             if (!channel.canPlayerJoin(player) && !player.hasPermission("chat.forcejoin")) {
-                player.sendMessage("§cYou don't have permission to join that chat!");
+                messager.sendMessage(player, "Chat_Warnings_12");
+
                 return;
             }
 
@@ -202,18 +235,19 @@ public class ChatManager {
 
     public static void unblockUser(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 3) {
-            player.sendMessage("§cUsage: /chat unblock <player> <channel>");
+            messager.sendMessage(player, "Chat_Warnings_13");
+
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
             return;
         }
 
@@ -221,27 +255,34 @@ public class ChatManager {
         ChatChannel channel = channels.get(chatName);
 
         if (channel == null) {
-            player.sendMessage("§cThat chat channel doesn't exist!");
+            messager.sendMessage(player, "Chat_Warnings_9");
             return;
         }
 
         storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
             if (!"owner".equals(permission) && !"manager".equals(permission) && !player.hasPermission("chat.admin")) {
-                player.sendMessage("§cYou don't have permission to unblock users from this channel!");
+                messager.sendMessage(player, "Chat_Warnings_15");
                 return;
             }
 
             storageManager.isUserBlockedFromChannel(target.getUniqueId(), chatName).thenAccept(isBlocked -> {
                 if (!isBlocked) {
-                    player.sendMessage("§c" + target.getName() + " is not blocked from channel " + chatName + "!");
+                    String Msg2 = LanguageManager.get("Chat_Warnings_16", languagekey);
+                    player.sendMessage("§c" + target.getName() + Msg2 + chatName + "!");
                     return;
                 }
 
                 storageManager.unblockUserFromChannel(target.getUniqueId(), chatName);
+                String Msg1 = LanguageManager.get("Chat_Warnings_17", languagekey);
+                String Msg2 = LanguageManager.get("Chat_Warnings_18", languagekey);
+                String Msg3 = LanguageManager.get("Chat_Warnings_19", languagekey);
+                String Msg4 = LanguageManager.get("Chat_Warnings_20", languagekey);
 
-                player.sendMessage("§aSuccessfully unblocked §e" + target.getName() + "§a from channel §e" + chatName);
-                target.sendMessage("§aYou have been unblocked from channel §e" + chatName + "§a by §e" + player.getName());
-                target.sendMessage("§7You can now join this channel again.");
+
+                player.sendMessage(Msg1 + target.getName() + Msg2 + chatName);
+                target.sendMessage(Msg3 + chatName + Msg4 + player.getName());
+                messager.sendMessage(target, "Chat_Warnings_9");
+//                target.sendMessage(Msg5);
             });
         });
     }
@@ -252,37 +293,39 @@ public class ChatManager {
         storageManager.isUserInChat(player.getUniqueId(), chatName).thenAccept(isInChat -> {
             if (isInChat) {
                 profile.setCurrentChat(chatName);
-                player.sendMessage("§aSuccessfully switched to chat channel: §e" + chatName);
+                String Msg = LanguageManager.get("Chat_Warnings_22", languagekey);
+                player.sendMessage(Msg + chatName);
                 return;
             }
 
             profile.joinChat(chatName);
             storageManager.addUserToChat(player.getUniqueId(), chatName);
-            player.sendMessage("§aSuccessfully joined chat channel: §e" + chatName);
+            String Msg = LanguageManager.get("Chat_Warnings_23", languagekey);
+            player.sendMessage(Msg + chatName);
         });
     }
 
     public static void leaveChat(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /chat leave <name>");
+            messager.sendMessage(player, "Chat_Warnings_24");
             return;
         }
 
         String chatName = args[1].toLowerCase();
 
         if (chatName.equals("public")) {
-            player.sendMessage("§cYou cannot leave the public chat!");
+            messager.sendMessage(player, "Chat_Warnings_25");
             return;
         }
 
         storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
             if ("owner".equals(permission)) {
-                player.sendMessage("§cYou cannot leave a channel you own! Use /chat transfer to transfer ownership first.");
+                messager.sendMessage(player, "Chat_Warnings_26");
                 return;
             }
 
@@ -290,7 +333,7 @@ public class ChatManager {
 
             storageManager.isUserInChat(player.getUniqueId(), chatName).thenAccept(isInChat -> {
                 if (!isInChat) {
-                    player.sendMessage("§cYou're not in that chat channel!");
+                    messager.sendMessage(player, "Chat_Warnings_27");
                     return;
                 }
 
@@ -298,21 +341,22 @@ public class ChatManager {
                 storageManager.removeUserFromChat(player.getUniqueId(), chatName);
                 storageManager.removeChatPermission(player.getUniqueId(), chatName);
                 storageManager.blockUserFromChannel(player.getUniqueId(), chatName, player.getUniqueId(), "Left channel voluntarily");
+                String Msg = LanguageManager.get("Chat_Warnings_28", languagekey);
 
-                player.sendMessage("§aSuccessfully left chat channel: §e" + chatName);
-                player.sendMessage("§7Note: You will need to be re-invited to join this channel again.");
+                player.sendMessage(Msg + chatName);
+                messager.sendMessage(player, "Chat_Warnings_29");
             });
         });
     }
 
     public static void selectChat(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /chat select <name>");
+            messager.sendMessage(player, "Chat_Warnings_30");
             return;
         }
 
@@ -323,7 +367,7 @@ public class ChatManager {
             if (isBanned) {
                 storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
                     if (!"owner".equals(permission)) {
-                        player.sendMessage("§cYou are banned from using chat channels!");
+                        messager.sendMessage(player, "Chat_Warnings_31");
                         return;
                     }
 
@@ -339,35 +383,40 @@ public class ChatManager {
     private static void selectChatInternal(Player player, String chatName, UserChatProfile profile) {
         storageManager.isUserInChat(player.getUniqueId(), chatName).thenAccept(isInChat -> {
             if (!isInChat) {
+                String Msg1 = LanguageManager.get("Chat_Warnings_32", languagekey);
+                String Msg2 = LanguageManager.get("Chat_Warnings_33", languagekey);
+
                 if ("staff".equalsIgnoreCase(chatName) && player.hasPermission("chat.staff")) {
-                    player.sendMessage("§cYou're not in that chat channel! Use /chat " + chatName + " .");
+                    player.sendMessage(Msg1 + chatName + " .");
                 } else if ("dev".equalsIgnoreCase(chatName) && player.hasPermission("chat.dev")) {
-                    player.sendMessage("§cYou're not in that chat channel! Use /chat " + chatName + " .");
+                    player.sendMessage(Msg1 + chatName + " .");
                 } else {
-                    player.sendMessage("§cYou're not in that chat channel! Use /chat join " + chatName + " first.");
+                    player.sendMessage(Msg2 + chatName + " .");
                     return;
                 }
             }
+            String Msg = LanguageManager.get("Chat_Warnings_34", languagekey);
 
             profile.setCurrentChat(chatName);
-            player.sendMessage("§aSuccessfully switched to chat channel: §e" + chatName);
+            player.sendMessage(Msg + chatName);
         });
     }
 
     public static void inviteToChat(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 3) {
-            player.sendMessage("§cUsage: /chat invite <player> <channel>");
+            messager.sendMessage(player, "Chat_Warnings_35");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
@@ -375,60 +424,70 @@ public class ChatManager {
         ChatChannel channel = channels.get(chatName);
 
         if (channel == null) {
-            player.sendMessage("§cThat chat channel doesn't exist!");
+            messager.sendMessage(player, "Chat_Warnings_9");
             return;
         }
 
         storageManager.isUserBanned(target.getUniqueId()).thenAccept(isBanned -> {
             if (isBanned) {
-                player.sendMessage("§c" + target.getName() + " is banned from chat channels!");
+                String Msg = LanguageManager.get("Chat_Warnings_36", languagekey);
+                player.sendMessage("§c" + target.getName() + Msg);
                 return;
             }
 
             storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
                 if (permission == null || (!permission.equals("owner") && !permission.equals("manager") && !player.hasPermission("chat.admin"))) {
-                    player.sendMessage("§cYou don't have permission to invite players to this chat!");
+                    messager.sendMessage(player, "Chat_Warnings_37");
                     return;
                 }
 
                 storageManager.isUserInChat(target.getUniqueId(), chatName).thenAccept(isInChat -> {
                     if (isInChat) {
-                        player.sendMessage("§c" + target.getName() + " is already in that chat channel!");
+                        String Msg = LanguageManager.get("Chat_Warnings_38", languagekey);
+                        player.sendMessage("§c" + target.getName() + Msg);
                         return;
                     }
 
-                    UserChatProfile targetProfile = profileManager.getProfile(target.getUniqueId());
-                    targetProfile.joinChat(chatName);
-                    storageManager.addUserToChat(target.getUniqueId(), chatName);
+                    storageManager.addChatInvitation(target.getUniqueId(), chatName, player.getUniqueId());
 
-                    player.sendMessage("§aSuccessfully invited §e" + target.getName() + "§a to §e" + chatName);
-                    target.sendMessage("§a" + player.getName() + " §ahas invited you to chat channel: §e" + chatName);
-                    target.sendMessage("§7Use §e/chat select " + chatName + "§7 to switch to it.");
+                    String Msg1 = LanguageManager.get("Chat_Warnings_39", languagekey);
+                    String Msg2 = LanguageManager.get("Chat_Warnings_40", languagekey);
+                    String Msg3 = LanguageManager.get("Chat_Warnings_41", languagekey);
+                    String Msg4 = LanguageManager.get("Chat_Warnings_42", languagekey);
+                    String Msg5 = LanguageManager.get("Chat_Warnings_43", languagekey);
+
+                    player.sendMessage(Msg1 + target.getName() + Msg2 + chatName);
+                    target.sendMessage("§a" + player.getName() + Msg3 + chatName);
+                    target.sendMessage(Msg4 + chatName + Msg5);
                 });
             });
         });
     }
 
+
+
+
     public static void joinPublicChat(Player player) {
         UserChatProfile profile = profileManager.getProfile(player.getUniqueId());
         profile.setCurrentChat("public");
+        messager.sendMessage(player, "Chat_Warnings_44");
         player.sendMessage("§aSuccessfully switched to public chat.");
     }
 
 
     public static Map<String, ChatChannel> getChannels() {
-        return channels; // or whatever your channels collection is called
+        return channels;
     }
 
 
     public static void joinStaffChat(Player player) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Chat_Warnings_1");
             return;
         }
 
         if (!player.hasPermission("chat.staff")) {
-            player.sendMessage("§cYou don't have permission to access staff chat!");
+            messager.sendMessage(player, "Chat_Warnings_45");
             return;
         }
 
@@ -441,18 +500,18 @@ public class ChatManager {
             }
 
             profile.setCurrentChat("staff");
-            player.sendMessage("§aSuccessfully switched to staff chat.");
+            messager.sendMessage(player, "Chat_Warnings_46");
         });
     }
 
     public static void joinDevChat(Player player) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (!player.hasPermission("chat.dev")) {
-            player.sendMessage("§cYou don't have permission to access dev chat!");
+            messager.sendMessage(player, "Chat_Warnings_47");
             return;
         }
 
@@ -465,18 +524,18 @@ public class ChatManager {
             }
 
             profile.setCurrentChat("dev");
-            player.sendMessage("§aSuccessfully switched to dev chat.");
+            messager.sendMessage(player, "Chat_Warnings_48");
         });
     }
 
     public static void hideChat(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /chat hide <channel>");
+            messager.sendMessage(player, "Chat_Warnings_49");
             return;
         }
 
@@ -485,16 +544,19 @@ public class ChatManager {
 
         storageManager.isUserInChat(player.getUniqueId(), chatName).thenAccept(isInChat -> {
             if (!isInChat) {
-                player.sendMessage("§cYou're not in that chat channel!");
+
+                messager.sendMessage(player, "Chat_Warnings_27");
                 return;
             }
 
             profile.toggleChatVisibility(chatName);
 
             if (profile.isChatHidden(chatName)) {
-                player.sendMessage("§aHidden chat channel: §e" + chatName);
+                String Msg1 = LanguageManager.get("Chat_Warnings_50", languagekey);
+                player.sendMessage(Msg1 + chatName);
             } else {
-                player.sendMessage("§aUnhidden chat channel: §e" + chatName);
+                String Msg1 = LanguageManager.get("Chat_Warnings_51", languagekey);
+                player.sendMessage(Msg1 + chatName);
             }
         });
     }
@@ -509,7 +571,7 @@ public class ChatManager {
 
     public static void freezeChats(Player player) {
         if (!player.hasPermission("chat.admin")) {
-            player.sendMessage("§cYou don't have permission to freeze chats!");
+            messager.sendMessage(player, "Chat_Warnings_52");
             return;
         }
 
@@ -519,16 +581,21 @@ public class ChatManager {
         for (ChatChannel channel : channels.values()) {
             channel.setFrozen(shouldFreeze);
         }
+        String frozen = LanguageManager.get("frozen", languagekey);
+        String unfrozen = LanguageManager.get("unfrozen", languagekey);
 
-        String status = shouldFreeze ? "frozen" : "unfrozen";
+        String status = shouldFreeze ? frozen : unfrozen;
         for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-            onlinePlayer.sendMessage("§c[ADMIN] §eAll chat channels have been " + status + " by " + player.getName());
+            String Msg1 = LanguageManager.get("Chat_Warnings_53", languagekey);
+            String Msg2 = LanguageManager.get("Chat_Warnings_54", languagekey);
+
+            onlinePlayer.sendMessage(Msg1 + status + Msg2 + player.getName());
         }
     }
 
     public static void clearChat(Player player, String[] args) {
         if (!player.hasPermission("chat.admin")) {
-            player.sendMessage("§cYou don't have permission to clear chats!");
+            messager.sendMessage(player, "Chat_Warnings_55");
             return;
         }
 
@@ -540,25 +607,27 @@ public class ChatManager {
                 for (int i = 0; i < 100; i++) {
                     onlinePlayer.sendMessage("");
                 }
-                onlinePlayer.sendMessage("§c[ADMIN] §eChat cleared by " + player.getName());
+                String Msg1 = LanguageManager.get("Chat_Warnings_56", languagekey);
+                onlinePlayer.sendMessage(Msg1 + player.getName());
             }
         }
     }
 
     public static void transferOwnership(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 3) {
-            player.sendMessage("§cUsage: /chat transfer <player> <channel>");
+            messager.sendMessage(player, "Chat_Warnings_57");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
@@ -566,19 +635,20 @@ public class ChatManager {
         ChatChannel channel = channels.get(chatName);
 
         if (channel == null) {
-            player.sendMessage("§cThat chat channel doesn't exist!");
+            messager.sendMessage(player, "Chat_Warnings_9");
             return;
         }
 
         storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
             if (!"owner".equals(permission) && !player.hasPermission("chat.admin")) {
-                player.sendMessage("§cYou're not the owner of this channel!");
+                messager.sendMessage(player, "Chat_Warnings_58");
                 return;
             }
 
             storageManager.isUserBanned(target.getUniqueId()).thenAccept(isBanned -> {
                 if (isBanned) {
-                    player.sendMessage("§c" + target.getName() + " is banned and cannot own channels!");
+                    String Msg1 = LanguageManager.get("Chat_Warnings_56", languagekey);
+                    player.sendMessage("§c" + target.getName() + Msg1);
                     return;
                 }
 
@@ -588,16 +658,20 @@ public class ChatManager {
                 channel.setOwner(target.getUniqueId());
 
                 storageManager.addUserToChat(target.getUniqueId(), chatName);
+                String Msg1 = LanguageManager.get("Chat_Warnings_60", languagekey);
+                String Msg2 = LanguageManager.get("Chat_Warnings_61", languagekey);
+                String Msg3 = LanguageManager.get("Chat_Warnings_62", languagekey);
+                String Msg4 = LanguageManager.get("Chat_Warnings_63", languagekey);
 
-                player.sendMessage("§aSuccessfully transferred ownership of §e" + chatName + "§a to §e" + target.getName());
-                target.sendMessage("§a" + player.getName() + " §ahas transferred ownership of §e" + chatName + "§a to you!");
+                player.sendMessage(Msg1 + chatName + Msg2 + target.getName());
+                target.sendMessage("§a" + player.getName() + Msg3 + chatName + Msg4);
             });
         });
     }
 
     public static void trustUser(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
@@ -608,7 +682,8 @@ public class ChatManager {
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
@@ -616,45 +691,53 @@ public class ChatManager {
         ChatChannel channel = channels.get(chatName);
 
         if (channel == null) {
-            player.sendMessage("§cThat chat channel doesn't exist!");
+            messager.sendMessage(player, "Chat_Warnings_9");
             return;
         }
 
         storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
             if (!"owner".equals(permission) && !"manager".equals(permission) && !player.hasPermission("chat.admin")) {
-                player.sendMessage("§cYou don't have permission to trust users in this channel!");
+                messager.sendMessage(player, "Chat_Warnings_65");
                 return;
             }
 
             storageManager.isUserBanned(target.getUniqueId()).thenAccept(isBanned -> {
                 if (isBanned) {
-                    player.sendMessage("§c" + target.getName() + " is banned and cannot be trusted!");
+                    String Msg1 = LanguageManager.get("Chat_Warnings_66", languagekey);
+                    player.sendMessage("§c" + target.getName() + Msg1);
                     return;
                 }
 
                 storageManager.setChatPermission(target.getUniqueId(), chatName, "trusted", player.getUniqueId());
                 storageManager.addUserToChat(target.getUniqueId(), chatName);
 
-                player.sendMessage("§aSuccessfully trusted §e" + target.getName() + "§a in channel §e" + chatName);
-                target.sendMessage("§aYou have been trusted in channel §e" + chatName + "§a by §e" + player.getName());
+                String Msg1 = LanguageManager.get("Chat_Warnings_67", languagekey);
+                String Msg2 = LanguageManager.get("Chat_Warnings_68", languagekey);
+                String Msg3 = LanguageManager.get("Chat_Warnings_69", languagekey);
+                String Msg4 = LanguageManager.get("Chat_Warnings_20", languagekey);
+
+
+                player.sendMessage(Msg1 + target.getName() + Msg2 + chatName);
+                target.sendMessage(Msg3 + chatName + Msg4 + player.getName());
             });
         });
     }
 
     public static void assignManager(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 3) {
-            player.sendMessage("§cUsage: /chat manager <player> <channel>");
+            messager.sendMessage(player, "Chat_Warnings_70");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
@@ -662,45 +745,52 @@ public class ChatManager {
         ChatChannel channel = channels.get(chatName);
 
         if (channel == null) {
-            player.sendMessage("§cThat chat channel doesn't exist!");
+            messager.sendMessage(player, "Chat_Warnings_9");
             return;
         }
 
         storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
             if (!"owner".equals(permission) && !player.hasPermission("chat.admin")) {
-                player.sendMessage("§cOnly the channel owner can assign managers!");
+                messager.sendMessage(player, "Chat_Warnings_71");
                 return;
             }
 
             storageManager.isUserBanned(target.getUniqueId()).thenAccept(isBanned -> {
                 if (isBanned) {
-                    player.sendMessage("§c" + target.getName() + " is banned and cannot be a manager!");
+                    String Msg1 = LanguageManager.get("Chat_Warnings_72", languagekey);
+                    player.sendMessage("§c" + target.getName() + Msg1);
                     return;
                 }
 
                 storageManager.setChatPermission(target.getUniqueId(), chatName, "manager", player.getUniqueId());
                 storageManager.addUserToChat(target.getUniqueId(), chatName);
+                String Msg1 = LanguageManager.get("Chat_Warnings_73", languagekey);
+                String Msg2 = LanguageManager.get("Chat_Warnings_74", languagekey);
+                String Msg3 = LanguageManager.get("Chat_Warnings_75", languagekey);
+                String Msg4 = LanguageManager.get("Chat_Warnings_20", languagekey);
 
-                player.sendMessage("§aSuccessfully made §e" + target.getName() + "§a a manager of §e" + chatName);
-                target.sendMessage("§aYou have been made a manager of channel §e" + chatName + "§a by §e" + player.getName());
+                player.sendMessage(Msg1 + target.getName() + Msg2 + chatName);
+                target.sendMessage(Msg3 + chatName + Msg4 + player.getName());
             });
         });
     }
 
     public static void muteUser(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 3) {
-            player.sendMessage("§cUsage: /chat mute <player> <channel>");
+
+            messager.sendMessage(player, "Chat_Warnings_76");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
@@ -708,26 +798,30 @@ public class ChatManager {
         ChatChannel channel = channels.get(chatName);
 
         if (channel == null) {
-            player.sendMessage("§cThat chat channel doesn't exist!");
+            messager.sendMessage(player, "Chat_Warnings_9");
             return;
         }
 
         storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
             if (!"owner".equals(permission) && !"manager".equals(permission) && !player.hasPermission("chat.admin")) {
                 compatibilityManager.runPlayerTask(player, () ->
-                        player.sendMessage("§cYou don't have permission to mute users in this channel!"));
+                        messager.sendMessage(player, "Chat_Warnings_77"));
                 return;
             }
 
             storageManager.setChatPermission(target.getUniqueId(), chatName, "muted", player.getUniqueId())
                     .thenRun(() -> {
                         compatibilityManager.runPlayerTask(player, () -> {
-//                            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "mute " + player.getName());
-                            player.sendMessage("§aSuccessfully muted §e" + target.getName() + "§a in channel §e" + chatName);
+                            String Msg1 = LanguageManager.get("Chat_Warnings_78", languagekey);
+                            String Msg2 = LanguageManager.get("Chat_Warnings_68", languagekey);
+                            String Msg3 = LanguageManager.get("Chat_Warnings_80", languagekey);
+                            String Msg4 = LanguageManager.get("Chat_Warnings_81", languagekey);
+
+                            player.sendMessage(Msg1 + target.getName() + Msg2 + chatName);
                             if (displayusername) {
-                                target.sendMessage("§cYou have been muted in channel §e" + chatName + "§c by §e" + player.getName());
+                                target.sendMessage(Msg3 + chatName + Msg4 + player.getName());
                             } else {
-                                target.sendMessage("§cYou have been muted in channel §e" + chatName);
+                                target.sendMessage(Msg3 + chatName);
                             }
                         });
                     });
@@ -736,18 +830,19 @@ public class ChatManager {
 
     public static void unmute(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 3) {
-            player.sendMessage("§cUsage: /chat unmute <player> <channel>");
+            messager.sendMessage(player, "Chat_Warnings_113");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
@@ -755,7 +850,7 @@ public class ChatManager {
         ChatChannel channel = channels.get(chatName);
 
         if (channel == null) {
-            player.sendMessage("§cThat chat channel doesn't exist!");
+            messager.sendMessage(player, "Chat_Warnings_9");
             return;
         }
 
@@ -763,7 +858,7 @@ public class ChatManager {
                 .thenCompose(permission -> {
                     if (!"owner".equals(permission) && !"manager".equals(permission) && !player.hasPermission("chat.admin")) {
                         compatibilityManager.runPlayerTask(player, () ->
-                                player.sendMessage("§cYou don't have permission to unmute users in this channel!"));
+                                messager.sendMessage(player, "Chat_Warnings_82"));
                         return CompletableFuture.completedFuture(null);
                     }
 
@@ -773,33 +868,36 @@ public class ChatManager {
                     if (targetPermission == null) {
                         return CompletableFuture.completedFuture(null);
                     }
+                    String Msg1 = LanguageManager.get("Chat_Warnings_83", languagekey);
 
                     if (!"muted".equals(targetPermission)) {
                         compatibilityManager.runPlayerTask(player, () ->
-                                player.sendMessage("§c" + target.getName() + " is not muted in channel " + chatName + "!"));
+                                player.sendMessage("§c" + target.getName() + Msg1 + chatName + "!"));
                         return CompletableFuture.completedFuture(null);
                     }
 
                     return storageManager.unmutePlayer(target.getUniqueId(), chatName);
                 })
                 .thenRun(() -> {
-                    compatibilityManager.runPlayerTask(player, () -> {
-                        player.sendMessage("§aSuccessfully unmuted §e" + target.getName() + "§a in channel §e" + chatName);
-                        if (displayusername) {
-                            target.sendMessage("§aYou have been unmuted in channel §e" + chatName + "§a by §e" + player.getName());
-                        } else {
-                            target.sendMessage("§aYou have been unmuted in channel §e" + chatName);
-                        }
-//                        String command = "mute " + target.getName() + " 1s";
-//                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command + player.getName());
+                    String Msg1 = LanguageManager.get("Chat_Warnings_84", languagekey);
+                    String Msg2 = LanguageManager.get("Chat_Warnings_68", languagekey);
+                    String Msg3 = LanguageManager.get("Chat_Warnings_85", languagekey);
+                    String Msg4 = LanguageManager.get("Chat_Warnings_20", languagekey);
 
+                    compatibilityManager.runPlayerTask(player, () -> {
+                        player.sendMessage(Msg1 + target.getName() + Msg2 + chatName);
+                        if (displayusername) {
+                            target.sendMessage(Msg3 + chatName + Msg4 + player.getName());
+                        } else {
+                            target.sendMessage(Msg3 + chatName);
+                        }
                     });
                 })
                 .exceptionally(throwable -> {
                     if (throwable != null) {
                         compatibilityManager.severe("Error during unmute operation: " + throwable.getMessage());
                         compatibilityManager.runPlayerTask(player, () ->
-                                player.sendMessage("§cAn error occurred while unmuting the player."));
+                                messager.sendMessage(player, "Chat_Warnings_79"));
                     }
                     return null;
                 });
@@ -807,18 +905,19 @@ public class ChatManager {
 
     public static void kickUser(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (args.length < 3) {
-            player.sendMessage("§cUsage: /chat kick <player> <channel>");
+            messager.sendMessage(player, "Chat_Warnings_86");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
@@ -826,19 +925,19 @@ public class ChatManager {
         ChatChannel channel = channels.get(chatName);
 
         if (channel == null) {
-            player.sendMessage("§cThat chat channel doesn't exist!");
+            messager.sendMessage(player, "Chat_Warnings_9");
             return;
         }
 
         storageManager.getChatPermission(target.getUniqueId(), chatName).thenAccept(targetPermission -> {
             if ("owner".equals(targetPermission)) {
-                player.sendMessage("§cYou cannot kick the owner of the channel!");
+                messager.sendMessage(player, "Chat_Warnings_87");
                 return;
             }
 
             storageManager.getChatPermission(player.getUniqueId(), chatName).thenAccept(permission -> {
                 if (!"owner".equals(permission) && !"manager".equals(permission) && !player.hasPermission("chat.admin")) {
-                    player.sendMessage("§cYou don't have permission to kick users from this channel!");
+                    messager.sendMessage(player, "Chat_Warnings_88");
                     return;
                 }
 
@@ -851,9 +950,16 @@ public class ChatManager {
                 UserChatProfile targetProfile = profileManager.getProfile(target.getUniqueId());
                 targetProfile.leaveChat(chatName);
 
-                player.sendMessage("§aSuccessfully kicked §e" + target.getName() + "§a from channel §e" + chatName);
-                target.sendMessage("§cYou have been kicked from channel §e" + chatName + "§c by §e" + player.getName());
-                target.sendMessage("§7You will need to be re-invited to join this channel again.");
+
+                String Msg1 = LanguageManager.get("Chat_Warnings_89", languagekey);
+                String Msg2 = LanguageManager.get("Chat_Warnings_18", languagekey);
+                String Msg3 = LanguageManager.get("Chat_Warnings_90", languagekey);
+                String Msg4 = LanguageManager.get("Chat_Warnings_81", languagekey);
+                String Msg5 = LanguageManager.get("Chat_Warnings_91", languagekey);
+
+                player.sendMessage(Msg1 + target.getName() + Msg2 + chatName);
+                target.sendMessage(Msg3 + chatName + Msg4 + player.getName());
+                target.sendMessage(Msg5);
             });
         });
 
@@ -861,23 +967,24 @@ public class ChatManager {
 
     public static void forceKickUser(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (!player.hasPermission("chat.admin")) {
-            player.sendMessage("§cYou don't have permission to use this command!");
+            messager.sendMessage(player, "Chat_Warnings_92");
             return;
         }
 
         if (args.length < 3) {
-            player.sendMessage("§cUsage: /chat forcekick <player> <channel>");
+            messager.sendMessage(player, "Chat_Warnings_93");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
@@ -888,30 +995,35 @@ public class ChatManager {
 
         UserChatProfile targetProfile = profileManager.getProfile(target.getUniqueId());
         targetProfile.leaveChat(chatName);
+        String Msg1 = LanguageManager.get("Chat_Warnings_94", languagekey);
+        String Msg2 = LanguageManager.get("Chat_Warnings_18", languagekey);
+        String Msg3 = LanguageManager.get("Chat_Warnings_95", languagekey);
+        String Msg4 = LanguageManager.get("Chat_Warnings_81", languagekey);
 
-        player.sendMessage("§aSuccessfully force-kicked §e" + target.getName() + "§a from channel §e" + chatName);
-        target.sendMessage("§cYou have been force-kicked from channel §e" + chatName + "§c by §e" + player.getName());
+        player.sendMessage(Msg1 + target.getName() + Msg2 + chatName);
+        target.sendMessage(Msg3 + chatName + Msg4 + player.getName());
     }
 
     public static void banUser(Player player, String[] args) {
         if (storageManager == null) {
-            player.sendMessage("§cChat system not properly initialized! Please contact an administrator.");
+            messager.sendMessage(player, "Help_warnings_1");
             return;
         }
 
         if (!player.hasPermission("chat.admin")) {
-            player.sendMessage("§cYou don't have permission to use this command!");
+            messager.sendMessage(player, "Chat_Warnings_92");
             return;
         }
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /chat ban <player> [reason]");
+            messager.sendMessage(player, "Chat_Warnings_96");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
@@ -929,77 +1041,94 @@ public class ChatManager {
             }
         });
 
-        player.sendMessage("§aSuccessfully banned §e" + target.getName() + "§a from all chat channels");
-        player.sendMessage("§7Reason: §e" + reason);
+        String Msg1 = LanguageManager.get("Chat_Warnings_97", languagekey);
+        String Msg2 = LanguageManager.get("Chat_Warnings_98", languagekey);
+        String Msg3 = LanguageManager.get("Chat_Warnings_99", languagekey);
+        String Msg4 = LanguageManager.get("Chat_Warnings_100", languagekey);
+        String Msg5 = LanguageManager.get("Chat_Warnings_54", languagekey);
+
+        player.sendMessage(Msg1 + target.getName() + Msg2);
+        player.sendMessage(Msg3 + reason);
         if (displayusername) {
-            target.sendMessage("§cYou have been banned from all chat channels by §e" + player.getName());
+            target.sendMessage(Msg4 + Msg5 + "§e" + player.getName());
         } else {
-            target.sendMessage("§cYou have been banned from all chat channels" );
+            target.sendMessage(Msg4 );
         }
-        target.sendMessage("§7Reason: §e" + reason);
+        target.sendMessage(Msg3 + reason);
     }
 
     public static void unbanUser(Player player, String[] args) {
         if (!player.hasPermission("chat.admin")) {
-            player.sendMessage("§cYou don't have permission to use this command!");
+            messager.sendMessage(player, "Chat_Warnings_92");
             return;
         }
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /chat unban <player>");
+            messager.sendMessage(player, "Chat_Warnings_101");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
         storageManager.isUserBanned(target.getUniqueId()).thenAccept(isBanned -> {
             if (!isBanned) {
-                player.sendMessage("§c" + target.getName() + " is not banned!");
+                String Msg1 = LanguageManager.get("Chat_Warnings_102", languagekey);
+                player.sendMessage("§c" + target.getName() + Msg1);
                 return;
             }
 
             storageManager.unbanUser(target.getUniqueId());
+            String Msg1 = LanguageManager.get("Chat_Warnings_103", languagekey);
+            String Msg2 = LanguageManager.get("Chat_Warnings_104", languagekey);
+            String Msg3 = LanguageManager.get("Chat_Warnings_105", languagekey);
 
-            player.sendMessage("§aSuccessfully unbanned §e" + target.getName() + "§a from chat channels");
-            target.sendMessage("§aYou have been unbanned from chat channels by §e" + player.getName());
+            player.sendMessage(Msg1 + target.getName() + Msg2);
+            target.sendMessage(Msg3 + player.getName());
         });
     }
 
     public static void investigationMode(Player player, String[] args) {
         if (!player.hasPermission("chat.admin")) {
-            player.sendMessage("§cYou don't have permission to use this command!");
+            messager.sendMessage(player, "Chat_Warnings_92");
             return;
         }
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /chat investigation <player>");
+            messager.sendMessage(player, "Chat_Warnings_106");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            player.sendMessage("§cPlayer not found!");
+            messager.sendMessage(player, "Chat_Warnings_14");
+
             return;
         }
 
         UserChatProfile targetProfile = profileManager.getProfile(target.getUniqueId());
+        String Msg1 = LanguageManager.get("Chat_Warnings_107", languagekey);
+        String Msg2 = LanguageManager.get("Chat_Warnings_108", languagekey);
+        String Msg3 = LanguageManager.get("Chat_Warnings_109", languagekey);
+        String Msg4 = LanguageManager.get("Chat_Warnings_110", languagekey);
+        String yes = LanguageManager.get("yes", languagekey);
+        String no = LanguageManager.get("no", languagekey);
 
-        player.sendMessage("§6=== Investigation Mode: " + target.getName() + " ===");
+        player.sendMessage("§6=== "+Msg1 + target.getName() + " ===");
 
         storageManager.getUserChats(target.getUniqueId()).thenAccept(chats -> {
-            player.sendMessage("§eChats: §7" + String.join(", ", chats));
+            player.sendMessage(Msg2 + String.join(", ", chats));
         });
 
         storageManager.isUserBanned(target.getUniqueId()).thenAccept(isBanned -> {
-            player.sendMessage("§eBanned: §7" + (isBanned ? "Yes" : "No"));
+            player.sendMessage(Msg3 + (isBanned ? yes : no));
         });
 
-        player.sendMessage("§eCurrent Chat: §7" + targetProfile.getCurrentChat());
-        player.sendMessage("§7Use /chat history <channel> to view their chat history");
+        player.sendMessage(Msg4 + targetProfile.getCurrentChat());
     }
 
     private void initializeDefaultChannels() {
