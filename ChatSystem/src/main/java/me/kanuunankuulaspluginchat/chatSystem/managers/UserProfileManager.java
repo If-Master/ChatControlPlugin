@@ -20,12 +20,12 @@ public class UserProfileManager {
     private final File profilesDirectory;
 
     public UserProfileManager(ChatControlPlugin plugin) {
-        this.plugin = plugin;
-        this.profilesDirectory = new File(plugin.getDataFolder(), "profiles");
+            this.plugin = plugin;
+            this.profilesDirectory = new File(plugin.getDataFolder(), "profiles");
 
-        if (!profilesDirectory.exists()) {
-            profilesDirectory.mkdirs();
-        }
+            if (!profilesDirectory.exists()) {
+                profilesDirectory.mkdirs();
+            }
     }
 
     public UserChatProfile getProfile(UUID playerId) {
@@ -127,7 +127,7 @@ public class UserProfileManager {
             return profile;
 
         } catch (Exception e) {
-            plugin.getLogger().warning("Failed to load profile for " + playerId + ": " + e.getMessage());
+            plugin.getLogger().warning("[Translation Unavailable] Failed to load profile for " + playerId + ": " + e.getMessage());
             return null;
         }
     }
@@ -166,7 +166,7 @@ public class UserProfileManager {
             config.save(profileFile);
 
         } catch (IOException e) {
-            plugin.getLogger().warning("Failed to save profile for " + playerId + ": " + e.getMessage());
+            plugin.getLogger().warning("[Translation Unavailable] Failed to save profile for " + playerId + ": " + e.getMessage());
         }
     }
 
@@ -179,11 +179,11 @@ public class UserProfileManager {
     }
 
     public void printProfileStats() {
-        Bukkit.getLogger().info("=== Profile Manager Statistics ===");
-        Bukkit.getLogger().info("Loaded profiles: " + loadedProfiles.size());
+        Bukkit.getLogger().info("[Translation Unavailable] === Profile Manager Statistics ===");
+        Bukkit.getLogger().info("[Translation Unavailable] Loaded profiles: " + loadedProfiles.size());
 
         int totalFiles = profilesDirectory.listFiles() != null ? profilesDirectory.listFiles().length : 0;
-        Bukkit.getLogger().info("Total profile files: " + totalFiles);
+        Bukkit.getLogger().info("[Translation Unavailable] Total profile files: " + totalFiles);
 
         int totalMessages = 0;
         int totalChats = 0;
@@ -193,7 +193,7 @@ public class UserProfileManager {
             totalChats += profile.getJoinedChats().size();
         }
 
-        Bukkit.getLogger().info("Total messages tracked: " + totalMessages);
-        Bukkit.getLogger().info("Average chats per user: " + (loadedProfiles.size() > 0 ? totalChats / loadedProfiles.size() : 0));
+        Bukkit.getLogger().info("[Translation Unavailable] Total messages tracked: " + totalMessages);
+        Bukkit.getLogger().info("[Translation Unavailable] Average chats per user: " + (loadedProfiles.size() > 0 ? totalChats / loadedProfiles.size() : 0));
     }
 }
