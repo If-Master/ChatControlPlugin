@@ -1,12 +1,24 @@
 package me.kanuunankuulaspluginchat.chatSystem.Commands;
 
+import me.kanuunankuulaspluginchat.chatSystem.Language.LanguageManager;
+import me.kanuunankuulaspluginchat.chatSystem.Language.Messager;
 import me.kanuunankuulaspluginchat.chatSystem.managers.ChatManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 public class ChatCommandExecutor implements CommandExecutor {
+    private static String language;
+    private static Plugin chatControlPlugin;
+    private static Messager messager;
+    public ChatCommandExecutor(Messager messager, Plugin plugin) {
+        this.messager = messager;
+        this.chatControlPlugin = plugin;
+        // Initialize language if needed
+    }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -16,7 +28,7 @@ public class ChatCommandExecutor implements CommandExecutor {
         }
 
         if (args.length == 0) {
-            player.sendMessage("§cUsage: /chat <subcommand>");
+            messager.sendMessage(player, "Chat_Warnings_111");
             return true;
         }
 
@@ -91,7 +103,7 @@ public class ChatCommandExecutor implements CommandExecutor {
                 ChatManager.transferOwnership(player, args);
                 break;
             default:
-                player.sendMessage("§cUnknown subcommand. Use /chat help");
+                messager.sendMessage(player, "Chat_Warnings_112");
                 break;
         }
 
