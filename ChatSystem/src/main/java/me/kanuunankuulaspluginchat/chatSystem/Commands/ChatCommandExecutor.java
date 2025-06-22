@@ -17,7 +17,6 @@ public class ChatCommandExecutor implements CommandExecutor {
     public ChatCommandExecutor(Messager messager, Plugin plugin) {
         this.messager = messager;
         this.chatControlPlugin = plugin;
-        // Initialize language if needed
     }
 
     @Override
