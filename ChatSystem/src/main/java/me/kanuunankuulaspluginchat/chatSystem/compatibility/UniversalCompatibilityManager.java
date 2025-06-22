@@ -1,4 +1,6 @@
 package me.kanuunankuulaspluginchat.chatSystem.compatibility;
+import me.kanuunankuulaspluginchat.chatSystem.Language.LanguageManager;
+import me.kanuunankuulaspluginchat.chatSystem.compatibility.UpdateChecker;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -16,6 +18,9 @@ public class UniversalCompatibilityManager {
     private final JavaPlugin plugin;
     private final ServerType serverType;
     private final Logger logger;
+    private UpdateChecker updateChecker;
+    private String language;
+
 
     public enum ServerType {
         FOLIA,
@@ -78,12 +83,31 @@ public class UniversalCompatibilityManager {
         }
     }
 
-    public UniversalCompatibilityManager(JavaPlugin plugin) {
+    public UniversalCompatibilityManager(JavaPlugin plugin, LanguageManager languageManager) {
         this.plugin = plugin;
         this.serverType = detectServerType();
         this.logger = plugin.getLogger();
 
         logger.info("Detected server type: " + serverType.name());
+        this.updateChecker = new UpdateChecker(plugin, this, languageManager);
+
+    }
+    public UpdateChecker getUpdateChecker() {
+        return updateChecker;
+    }
+    public void checkForUpdates(java.util.function.Consumer<UpdateChecker.UpdateResult> callback) {
+        if (updateChecker != null) {
+            updateChecker.checkForUpdates(callback);
+        }
+    }
+    public CompletableFuture<UpdateChecker.UpdateResult> checkForUpdatesAsync() {
+        if (updateChecker != null) {
+            return updateChecker.checkForUpdatesAsync();
+        }
+
+        CompletableFuture<UpdateChecker.UpdateResult> future = new CompletableFuture<>();
+        future.complete(new UpdateChecker.UpdateResult(false, "Unknown", "Unknown", "Update checker not initialized"));
+        return future;
     }
 
     private ServerType detectServerType() {
