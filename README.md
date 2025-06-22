@@ -151,6 +151,12 @@ logging:
 ```
 # Permissions
 ```
+  chat.forcejoin:
+    description: Access to all chat channels
+    default: op
+  chat.updatefunction:
+    description: Access to the update function
+    default: op
   chat.admin:
     description: Access to all chat admin commands
     default: op
